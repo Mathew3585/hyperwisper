@@ -1,0 +1,48 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Local agent/tooling config — machine-specific paths, not project config
+.claude/
+
+# IDE
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Whisper models (large binaries) — also covers src-tauri/resources/*.bin
+models/
+*.bin
+*.gguf
+src-tauri/resources/*.bin
+
+# Stray artifact from a GDI+ experiment — a blank 1 KB PNG whose filename is a .NET type
+System.Drawing.Drawing2D.GraphicsPath
+
+# Build artifacts
+*.exe
+*.dmg
+*.app
+*.pkg
+*.deb
+*.AppImage
+*.msi
+*.nsis

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Hyperwisper">
+  <title>Hyperwisper</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#221D19"/>
+      <stop offset="100%" stop-color="#141210"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#tile)"/>
+  <rect x="0.75" y="0.75" width="254.5" height="254.5" rx="57.25" fill="none" stroke="#312B26" stroke-width="1.5"/>
+  <g transform="translate(48 48) scale(6.6667)" stroke="#D6995C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M3 12h2" />
+    <path d="M7 8v8" />
+    <path d="M10 5v14" />
+    <path d="M13 9v6" />
+    <path d="M16 7v10" />
+    <path d="M19 11v2" />
+    <path d="M22 12h-1" />
+  </g>
+</svg>

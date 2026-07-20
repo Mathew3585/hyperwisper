@@ -1,0 +1,71 @@
+name: Bug report
+description: Something doesn't work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        ⚠️ **Before pasting logs:** `%APPDATA%\Hyperwisper\logs\` records dictation metadata,
+        and your transcribed text lives next to it in `history.jsonl`. Please have a quick look
+        at what you're pasting.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press Ctrl+Space in ...
+        2. Say "..."
+        3. Release
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part?
+      options:
+        - Recording / hotkey
+        - Transcription quality or speed
+        - Auto-paste
+        - Overlay
+        - Settings / onboarding
+        - Install / uninstall
+        - Build from source
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Whisper model
+      placeholder: small-q5_1
+
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Windows version, CPU, GPU
+      placeholder: Windows 11 24H2 · Ryzen 9 5900X · RTX 3060
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        From `%APPDATA%\Hyperwisper\logs\hyperwisper.log.<date>`.
+        Set `RUST_LOG=hyperwisper=debug` for more detail.
+      render: text

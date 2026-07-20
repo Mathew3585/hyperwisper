@@ -1,0 +1,138 @@
+/* Geist Sans + Geist Mono — bundled offline via @fontsource-variable */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────
+   "Quiet Premium" design tokens — warm palette, no purple,
+   no marketing-gradient. Tone: ink + paper + sand.
+   ───────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    /* Light — warm off-white (paper), deep ink */
+    --bg:           36 22% 97%;
+    --bg-elevated:  0 0% 100%;
+    --bg-subtle:    36 18% 93%;
+    --surface:      0 0% 100%;
+
+    --border:       36 16% 86%;
+    --border-soft:  36 16% 91%;
+    --hover:        36 18% 94%;
+
+    --text:         28 22% 9%;
+    --text-soft:    30 14% 27%;
+    --text-muted:   32 9% 45%;
+    --text-faint:   34 9% 62%;
+
+    /* Single warm accent — used sparingly */
+    --sand:         24 56% 47%;     /* terracotta */
+    --sand-soft:    24 56% 47% / 0.10;
+    --accent-fg:    36 22% 97%;     /* text color on sand-filled buttons */
+
+    /* State colors — analog-VU red + muted olive */
+    --ember:        4   65% 53%;
+    --moss:         88  32% 38%;
+
+    --radius:       8px;
+    --radius-lg:    12px;
+    --radius-xl:    16px;
+  }
+
+  .dark {
+    /* Dark — warm coffee, never the cold #0a0a0a generic */
+    --bg:           28 14% 7%;
+    --bg-elevated:  28 14% 10%;
+    --bg-subtle:    28 14% 12%;
+    --surface:      28 14% 10%;
+
+    --border:       28 12% 17%;
+    --border-soft:  28 12% 14%;
+    --hover:        28 12% 15%;
+
+    --text:         36 25% 94%;
+    --text-soft:    32 14% 78%;
+    --text-muted:   30 8% 56%;
+    --text-faint:   30 8% 35%;
+
+    --sand:         30 60% 60%;
+    --sand-soft:    30 60% 60% / 0.13;
+    --accent-fg:    28 14% 9%;      /* dark text on light-sand buttons */
+
+    --ember:        6  70% 62%;
+    --moss:         88 38% 60%;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Base
+   ───────────────────────────────────────────────────────── */
+@layer base {
+  * { border-color: hsl(var(--border)); }
+
+  html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: hsl(var(--bg));
+    color: hsl(var(--text));
+    font-family: "Geist Variable", "Inter", "Segoe UI Variable Text",
+                 "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    letter-spacing: -0.011em;
+  }
+
+  body.overlay { background: transparent !important; }
+
+  /* Mono utility */
+  .font-mono {
+    font-family: "Geist Mono Variable", "Geist Mono", "JetBrains Mono",
+                 ui-monospace, "SF Mono", Menlo, Consolas, monospace !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection { background: hsl(var(--sand) / 0.30); }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--text-faint));
+    background-clip: padding-box;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Semantic utilities — keeps JSX free of "bg-zinc-900" noise
+   ───────────────────────────────────────────────────────── */
+@layer utilities {
+  .bg-app         { background: hsl(var(--bg)); }
+  .bg-elevated    { background: hsl(var(--bg-elevated)); }
+  .bg-subtle      { background: hsl(var(--bg-subtle)); }
+  .bg-surface     { background: hsl(var(--surface)); }
+  .bg-hover       { background: hsl(var(--hover)); }
+  .bg-sand        { background: hsl(var(--sand)); }
+  .bg-sand-soft   { background: hsl(var(--sand-soft)); }
+  .bg-ember       { background: hsl(var(--ember)); }
+
+  .text-app       { color: hsl(var(--text)); }
+  .text-soft      { color: hsl(var(--text-soft)); }
+  .text-muted     { color: hsl(var(--text-muted)); }
+  .text-faint     { color: hsl(var(--text-faint)); }
+  .text-sand      { color: hsl(var(--sand)); }
+  .text-ember     { color: hsl(var(--ember)); }
+  .text-moss      { color: hsl(var(--moss)); }
+
+  .border-app     { border-color: hsl(var(--border)); }
+  .border-soft    { border-color: hsl(var(--border-soft)); }
+}

@@ -1,0 +1,6 @@
+# Keep MSBuild's deeply-nested whisper.cpp Vulkan shader build paths under
+# the Windows 260-char MAX_PATH limit. Without this, `ggml-vulkan` fails to
+# write `.tlog` files during compile. Release builds need 2 more chars than
+# debug (release vs debug), so we go with the shortest practical prefix.
+[build]
+target-dir = "D:/h"

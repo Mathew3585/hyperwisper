@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Note: this workflow deliberately checks the front-end only.
+# Building the Rust side requires CMake + LLVM + the Vulkan SDK and compiles
+# whisper.cpp and its compute shaders from source (10-20 min cold), so a full
+# build job is tracked in the roadmap rather than run on every push.
+jobs:
+  frontend:
+    name: Type-check & build front-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check and build
+        run: pnpm build
