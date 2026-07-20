@@ -60,7 +60,7 @@
     <rect x="595.0" y="122.3" width="5" height="27.5" rx="2.50" fill="#E7C49A" opacity="0.610"/>
 
   </g>
-  <text x="710" y="144" font-family="'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', monospace" font-size="24" fill="#C9BFB4" text-anchor="middle">0:07</text>
+  <text x="650" y="144" font-family="'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', monospace" font-size="24" fill="#C9BFB4" text-anchor="middle">0:07</text>
   <g transform="translate(748 136)">
     <circle r="19" fill="none" stroke="#312B26" stroke-width="1.5"/>
     <path d="M-6 -6 L6 6 M6 -6 L-6 6" stroke="#988F86" stroke-width="2.2" stroke-linecap="round"/>
