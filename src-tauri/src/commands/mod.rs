@@ -125,6 +125,14 @@ pub fn mark_onboarding_completed(app: AppHandle) -> Result<(), String> {
     state.settings.update(s).map_err(|e| e.to_string())
 }
 
+/// Push localised tray-menu labels down from the front-end. Called once when
+/// the UI mounts and again whenever the interface language changes, so the
+/// tray follows the rest of the app instead of being stuck in English.
+#[tauri::command]
+pub fn set_tray_labels(app: AppHandle, labels: crate::tray::TrayLabels) -> Result<(), String> {
+    crate::tray::set_labels(&app, labels).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn get_history() -> Vec<HistoryEntry> {
     history::read_all()
@@ -273,12 +281,21 @@ pub struct SystemStatus {
     pub privacy: StatusItem,
 }
 
+/// A single status row.
+///
+/// The backend deliberately emits NO prose. It has no idea which language
+/// the UI is running in, so it sends a stable `kind` id plus any data that
+/// isn't translatable anyway (a device name, a model name, a hotkey combo).
+/// The front-end maps `kind` to a string from its own dictionary.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatusItem {
     pub level: StatusLevel,
-    pub label: String,
-    pub value: String,
+    /// Stable identifier, e.g. "loaded", "missing", "gpu", "cpuWithGpu".
+    pub kind: String,
+    /// Interpolated into the translated string when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_to: Option<String>,
 }
@@ -301,14 +318,14 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         match guard.as_ref() {
             Some(engine) => StatusItem {
                 level: StatusLevel::Ok,
-                label: "Whisper".into(),
-                value: engine.model().display_name().to_string(),
+                kind: "loaded".into(),
+                detail: Some(engine.model().display_name().to_string()),
                 link_to: None,
             },
             None => StatusItem {
                 level: StatusLevel::Error,
-                label: "Whisper".into(),
-                value: "Aucun modèle chargé".into(),
+                kind: "missing".into(),
+                detail: None,
                 link_to: Some("models".into()),
             },
         }
@@ -318,14 +335,14 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
     let microphone = match audio::default_input_name() {
         Some(name) => StatusItem {
             level: StatusLevel::Ok,
-            label: "Microphone".into(),
-            value: name,
+            kind: "ok".into(),
+            detail: Some(name),
             link_to: None,
         },
         None => StatusItem {
             level: StatusLevel::Error,
-            label: "Microphone".into(),
-            value: "Aucun micro détecté".into(),
+            kind: "missing".into(),
+            detail: None,
             link_to: Some("audio".into()),
         },
     };
@@ -334,8 +351,8 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         let combo = state.settings.get().hotkey;
         StatusItem {
             level: StatusLevel::Ok,
-            label: "Raccourci".into(),
-            value: combo.replace('+', " + "),
+            kind: "ok".into(),
+            detail: Some(combo.replace('+', " + ")),
             link_to: None,
         }
     };
@@ -347,20 +364,20 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
         match (gpu, enabled) {
             (Some(name), true) => StatusItem {
                 level: StatusLevel::Ok,
-                label: "Accélération".into(),
-                value: format!("{} · GPU actif", name),
+                kind: "gpu".into(),
+                detail: Some(name),
                 link_to: None,
             },
             (Some(name), false) => StatusItem {
                 level: StatusLevel::Warn,
-                label: "Accélération".into(),
-                value: format!("CPU uniquement · {} disponible", name),
+                kind: "cpuWithGpu".into(),
+                detail: Some(name),
                 link_to: None,
             },
             (None, _) => StatusItem {
                 level: StatusLevel::Ok,
-                label: "Accélération".into(),
-                value: "CPU".into(),
+                kind: "cpu".into(),
+                detail: None,
                 link_to: None,
             },
         }
@@ -369,8 +386,8 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
     // Privacy — always OK by design
     let privacy = StatusItem {
         level: StatusLevel::Ok,
-        label: "Confidentialité".into(),
-        value: "100% local · aucune requête sortante".into(),
+        kind: "ok".into(),
+        detail: None,
         link_to: None,
     };
 

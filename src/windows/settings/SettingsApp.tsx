@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -14,6 +14,8 @@ import { events, type DownloadProgress } from "@/lib/events";
 import { applyTheme, getStoredTheme, setStoredTheme, type Theme } from "@/lib/theme";
 import { Sidebar, type NavItem } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
+import { useT, type Dictionary } from "@/i18n";
+import { useTrayLabels } from "@/lib/useTrayLabels";
 import { GeneralPanel } from "./panels/GeneralPanel";
 import { ModelsPanel } from "./panels/ModelsPanel";
 import { AudioPanel, ShortcutsPanel } from "./panels/AudioPanel";
@@ -31,20 +33,31 @@ type PanelId =
   | "account"
   | "about";
 
-const NAV: NavItem[] = [
-  { id: "general", label: "Général", icon: Sparkles },
-  { id: "models", label: "Modèles", icon: Cpu },
-  { id: "audio", label: "Audio", icon: Mic2 },
-  { id: "shortcuts", label: "Raccourcis", icon: Command },
-  { id: "history", label: "Historique", icon: History },
-  { id: "about", label: "À propos", icon: Info },
-];
+/**
+ * Built from the live dictionary rather than a module-level const: evaluated
+ * at import time the labels would freeze in whatever language was active on
+ * first load, and switching language would leave the sidebar stale.
+ */
+function buildNav(t: Dictionary): NavItem[] {
+  return [
+    { id: "general", label: t.nav.general, icon: Sparkles },
+    { id: "models", label: t.nav.models, icon: Cpu },
+    { id: "audio", label: t.nav.audio, icon: Mic2 },
+    { id: "shortcuts", label: t.nav.shortcuts, icon: Command },
+    { id: "history", label: t.nav.history, icon: History },
+    { id: "about", label: t.nav.about, icon: Info },
+  ];
+}
 
 export function SettingsApp() {
+  const t = useT();
+  const nav = useMemo(() => buildNav(t), [t]);
   const [panel, setPanel] = useState<PanelId>("general");
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  // Relabels the tray whenever the language or the hotkey changes.
+  useTrayLabels(settings?.hotkey);
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [progress, setProgress] = useState<Record<string, DownloadProgress>>({});
   const [downloading, setDownloading] = useState<Set<Model>>(new Set());
@@ -161,7 +174,7 @@ export function SettingsApp() {
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
-          items={NAV}
+          items={nav}
           active={panel}
           onSelect={(id) => setPanel(id as PanelId)}
           accountPanelId="account"

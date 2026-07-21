@@ -3,6 +3,7 @@ import { Loader2, Download, Check } from "lucide-react";
 import { PanelHeader } from "./common";
 import type { Model, ModelStatus } from "@/lib/ipc";
 import type { DownloadProgress } from "@/lib/events";
+import { useT, type Dictionary } from "@/i18n";
 
 interface ModelsPanelProps {
   models: ModelStatus[];
@@ -21,11 +22,13 @@ export function ModelsPanel({
   onLoad,
   error,
 }: ModelsPanelProps) {
+  const t = useT();
+
   return (
     <div className="space-y-8">
       <PanelHeader
-        title="Modèles"
-        description="Choisis un modèle Whisper. Tout reste sur ton PC — aucun audio ne quitte la machine."
+        title={t.settings.models.title}
+        description={t.settings.models.description}
       />
 
       {error && (
@@ -65,7 +68,7 @@ export function ModelsPanel({
                   </span>
                 </div>
                 <div className="text-[11.5px] text-muted mt-0.5 tabular-nums">
-                  {m.sizeMb} MB · {recommendationText(m.model)}
+                  {t.units.megabytes(m.sizeMb)} · {recommendationText(m.model, t)}
                 </div>
                 {isDownloading && p && p.total > 0 && (
                   <div className="mt-2 space-y-1.5">
@@ -77,7 +80,7 @@ export function ModelsPanel({
                       />
                     </div>
                     <div className="text-[10.5px] font-mono text-faint tabular-nums">
-                      {formatBytes(p.bytes)} / {formatBytes(p.total)} ·{" "}
+                      {formatBytes(p.bytes, t)} / {formatBytes(p.total, t)} ·{" "}
                       {p.percent.toFixed(0)}%
                     </div>
                   </div>
@@ -86,6 +89,7 @@ export function ModelsPanel({
 
               <Action
                 model={m}
+                t={t}
                 isDownloading={isDownloading}
                 onDownload={() => onDownload(m.model)}
                 onLoad={() => onLoad(m.model)}
@@ -96,7 +100,7 @@ export function ModelsPanel({
       </div>
 
       <div className="text-[11.5px] text-faint leading-relaxed font-mono">
-        Stockage · %APPDATA%\Hyperwisper\models\
+        {t.settings.models.storageLabel} · %APPDATA%\Hyperwisper\models\
       </div>
     </div>
   );
@@ -127,11 +131,13 @@ function Indicator({
 
 function Action({
   model,
+  t,
   isDownloading,
   onDownload,
   onLoad,
 }: {
   model: ModelStatus;
+  t: Dictionary;
   isDownloading: boolean;
   onDownload: () => void;
   onLoad: () => void;
@@ -139,7 +145,7 @@ function Action({
   if (model.loaded) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11.5px] font-medium tracking-tight text-moss">
-        <Check className="h-3 w-3" strokeWidth={3} /> Actif
+        <Check className="h-3 w-3" strokeWidth={3} /> {t.settings.models.state.active}
       </span>
     );
   }
@@ -149,7 +155,7 @@ function Action({
         onClick={onLoad}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-md border border-app bg-elevated hover:bg-hover transition-colors text-soft"
       >
-        Charger
+        {t.settings.models.action.load}
       </button>
     );
   }
@@ -169,30 +175,33 @@ function Action({
       ) : (
         <Download className="h-3 w-3" />
       )}
-      {isDownloading ? "Téléchargement" : "Télécharger"}
+      {isDownloading
+        ? t.settings.models.action.downloading
+        : t.settings.models.action.download}
     </button>
   );
 }
 
-function recommendationText(model: Model): string {
+function recommendationText(model: Model, t: Dictionary): string {
+  const reco = t.settings.models.reco;
   switch (model) {
     case "tiny-q5_1":
-      return "Test rapide, qualité approximative. À éviter pour le français quotidien.";
+      return reco.tinyQ5_1;
     case "base-q5_1":
-      return "Léger pour PC modeste. Acceptable pour de courtes phrases simples.";
+      return reco.baseQ5_1;
     case "small-q5_1":
-      return "★ Recommandé. Le meilleur compromis qualité/vitesse en français.";
+      return reco.smallQ5_1;
     case "small":
-      return "Version non quantisée du Small. Marginalement plus précis, 2,5× plus lourd.";
+      return reco.small;
     case "medium-q5_0":
-      return "Pour les longues dictées techniques. Demande un CPU costaud.";
+      return reco.mediumQ5_0;
     case "large-v3-q5_0":
-      return "Précision maximale. Lent même avec GPU, overkill pour la dictée.";
+      return reco.largeV3Q5_0;
   }
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+function formatBytes(n: number, t: Dictionary): string {
+  if (n < 1024) return t.units.bytes(n);
+  if (n < 1024 * 1024) return t.units.kilobytes((n / 1024).toFixed(1));
+  return t.units.megabytes((n / (1024 * 1024)).toFixed(1));
 }

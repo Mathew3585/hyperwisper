@@ -3,8 +3,10 @@ import { motion } from "framer-motion";
 import { Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { api } from "@/lib/ipc";
+import { useT } from "@/i18n";
 
 export function AboutPanel() {
+  const t = useT();
   const [uninstalling, setUninstalling] = useState(false);
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
 
@@ -35,8 +37,7 @@ export function AboutPanel() {
             hyperwisper
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Dictée vocale instantanée. Ta voix devient texte, partout dans
-            Windows. Rien ne sort de ton ordinateur.
+            {t.settings.about.tagline}
           </p>
         </div>
       </motion.section>
@@ -48,17 +49,12 @@ export function AboutPanel() {
         transition={{ duration: 0.4, delay: 0.08 }}
         className="space-y-4"
       >
-        <Label>Pourquoi</Label>
+        <Label>{t.settings.about.whyLabel}</Label>
         <Paragraph>
-          Parce que <em>parler</em> est 3× plus rapide qu'écrire au clavier. Tes
-          idées sortent à la vitesse à laquelle tu les penses. Plus d'allers-
-          retours mentaux entre la phrase et les doigts.
+          {t.settings.about.why.p1Prefix} <em>{t.settings.about.why.p1Emphasis}</em>{" "}
+          {t.settings.about.why.p1Suffix}
         </Paragraph>
-        <Paragraph>
-          Parce que les alternatives existantes te demandent un abonnement
-          mensuel pour utiliser une technologie open-source. Hyperwisper, c'est
-          le même résultat, sans abonnement, sans cloud, sans compromis.
-        </Paragraph>
+        <Paragraph>{t.settings.about.why.p2}</Paragraph>
       </motion.section>
 
       {/* Comment ça marche */}
@@ -68,22 +64,22 @@ export function AboutPanel() {
         transition={{ duration: 0.4, delay: 0.16 }}
         className="space-y-4"
       >
-        <Label>Comment ça marche</Label>
+        <Label>{t.settings.about.howLabel}</Label>
         <div className="space-y-5">
           <Step
             num="1"
-            title="Tu appuies sur Ctrl + Space"
-            description="N'importe où dans Windows. Sur ton bureau, dans Discord, dans Word, dans ton terminal. La pill apparaît en haut de l'écran."
+            title={`${t.settings.about.step1.titlePrefix} Ctrl + Space`}
+            description={t.settings.about.step1.description}
           />
           <Step
             num="2"
-            title="Tu parles"
-            description="Hyperwisper écoute et visualise ton audio en temps réel. Re-appuie sur Ctrl + Space quand tu as fini."
+            title={t.settings.about.step2.title}
+            description={`${t.settings.about.step2.descriptionPrefix} Ctrl + Space ${t.settings.about.step2.descriptionSuffix}`}
           />
           <Step
             num="3"
-            title="Ton texte se colle"
-            description="La transcription est faite sur ton PC en quelques secondes, puis collée exactement où ton curseur se trouve. Comme si tu l'avais tapée."
+            title={t.settings.about.step3.title}
+            description={t.settings.about.step3.description}
           />
         </div>
       </motion.section>
@@ -95,12 +91,8 @@ export function AboutPanel() {
         transition={{ duration: 0.4, delay: 0.24 }}
         className="space-y-4"
       >
-        <Label>Confidentialité</Label>
-        <Paragraph>
-          Aucun audio n'est envoyé sur internet. Aucun texte transcrit n'est
-          partagé. Aucune statistique d'usage n'est collectée. Tout reste sur ta
-          machine, pour toujours.
-        </Paragraph>
+        <Label>{t.settings.about.privacyLabel}</Label>
+        <Paragraph>{t.settings.about.privacyBody}</Paragraph>
       </motion.section>
 
       {/* Désinstallation */}
@@ -110,7 +102,7 @@ export function AboutPanel() {
         transition={{ duration: 0.4, delay: 0.3 }}
         className="space-y-3"
       >
-        <Label>Zone de danger</Label>
+        <Label>{t.settings.about.dangerLabel}</Label>
         <div
           className="rounded-lg border p-4 flex items-start justify-between gap-4"
           style={{
@@ -121,11 +113,10 @@ export function AboutPanel() {
           <div className="flex-1 space-y-1">
             <div className="text-[13px] font-medium text-app flex items-center gap-2">
               <AlertTriangle className="h-3 w-3" strokeWidth={2.4} style={{ color: "hsl(var(--ember))" }} />
-              Désinstaller Hyperwisper
+              {t.settings.about.uninstall.title}
             </div>
             <p className="text-[11.5px] text-muted leading-relaxed">
-              Supprime l'application, le modèle, tes réglages et ton historique.
-              Tu verras un écran de confirmation avant.
+              {t.settings.about.uninstall.description}
             </p>
           </div>
           {!confirmingUninstall ? (
@@ -140,7 +131,7 @@ export function AboutPanel() {
               }}
             >
               <Trash2 className="h-3 w-3" strokeWidth={2.4} />
-              Désinstaller…
+              {t.settings.about.uninstall.button}
             </button>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -149,7 +140,7 @@ export function AboutPanel() {
                 disabled={uninstalling}
                 className="inline-flex items-center px-3 py-1.5 rounded-md text-[12px] text-muted hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
               >
-                Annuler
+                {t.common.cancel}
               </button>
               <button
                 onClick={triggerUninstall}
@@ -165,7 +156,9 @@ export function AboutPanel() {
                 ) : (
                   <Trash2 className="h-3 w-3" strokeWidth={2.4} />
                 )}
-                {uninstalling ? "Lancement…" : "Continuer"}
+                {uninstalling
+                  ? t.settings.about.uninstall.launching
+                  : t.common.continue}
               </button>
             </div>
           )}
@@ -180,7 +173,7 @@ export function AboutPanel() {
         className="pt-6 flex items-center justify-between text-[11.5px] text-faint border-t border-soft"
       >
         <span className="font-mono">v0.1.0</span>
-        <span>Made by mathew · 2026</span>
+        <span>{t.settings.about.credit}</span>
       </motion.section>
     </div>
   );

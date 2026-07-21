@@ -3,9 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Trash2, Check, Inbox, Pencil } from "lucide-react";
 import { api, type HistoryEntry } from "@/lib/ipc";
 import { events } from "@/lib/events";
+import { formatRelativeTime } from "@/lib/datetime";
+import { useI18n, useT } from "@/i18n";
 import { PanelHeader } from "./common";
 
 export function HistoryPanel() {
+  const t = useT();
+  const { intlLocale } = useI18n();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,7 +54,7 @@ export function HistoryPanel() {
   }
 
   async function handleClear() {
-    if (!confirm("Effacer tout l'historique ? Cette action est irréversible.")) return;
+    if (!confirm(t.settings.history.clearConfirm)) return;
     try {
       await api.clearHistory();
       await refresh();
@@ -85,18 +89,20 @@ export function HistoryPanel() {
   return (
     <div className="space-y-8">
       <PanelHeader
-        title="Historique"
-        description="Toutes tes dictées sont stockées localement. Clique sur une entrée pour la recopier."
+        title={t.settings.history.title}
+        description={t.settings.history.description}
       />
 
       {entries.length > 0 && (
         <div className="flex items-center justify-between text-[11.5px] text-muted">
           <div className="flex items-center gap-4">
             <span>
-              <span className="text-app font-medium tabular-nums">{entries.length}</span> dictée{entries.length > 1 ? "s" : ""}
+              <span className="text-app font-medium tabular-nums">{entries.length}</span>{" "}
+              {t.settings.history.dictationCount(entries.length)}
             </span>
             <span>
-              <span className="text-app font-medium tabular-nums">{totalWords}</span> mot{totalWords > 1 ? "s" : ""}
+              <span className="text-app font-medium tabular-nums">{totalWords}</span>{" "}
+              {t.settings.history.wordCountLabel(totalWords)}
             </span>
           </div>
           <button
@@ -104,7 +110,7 @@ export function HistoryPanel() {
             className="text-[11.5px] text-muted hover:text-danger transition-colors"
             style={{ color: "hsl(var(--ember))" }}
           >
-            Tout effacer
+            {t.settings.history.clearAll}
           </button>
         </div>
       )}
@@ -140,14 +146,14 @@ export function HistoryPanel() {
                     />
                     <div className="flex items-center justify-between">
                       <span className="text-[10.5px] font-mono text-faint">
-                        ⌘ + ↵ pour sauver · Esc pour annuler
+                        {t.settings.history.editHint}
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={cancelEdit}
                           className="text-[12px] font-medium px-2.5 py-1 rounded-md text-muted hover:bg-hover transition-colors"
                         >
-                          Annuler
+                          {t.common.cancel}
                         </button>
                         <button
                           onClick={() => saveEdit(entry)}
@@ -157,7 +163,7 @@ export function HistoryPanel() {
                             color: "hsl(var(--accent-fg))",
                           }}
                         >
-                          Enregistrer
+                          {t.common.save}
                         </button>
                       </div>
                     </div>
@@ -167,11 +173,19 @@ export function HistoryPanel() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[13.5px] text-app leading-relaxed">{entry.text}</p>
                       <div className="mt-1.5 flex items-center gap-3 text-[10.5px] font-mono text-faint tabular-nums">
-                        <span>{formatTime(entry.timestamp)}</span>
+                        <span>
+                          {formatRelativeTime(entry.timestamp, t, intlLocale, {
+                            withTime: true,
+                          })}
+                        </span>
                         <span>·</span>
-                        <span>{entry.wordCount} mot{entry.wordCount > 1 ? "s" : ""}</span>
+                        <span>{t.settings.history.entryWords(entry.wordCount)}</span>
                         <span>·</span>
-                        <span>{(entry.durationMs / 1000).toFixed(1)}s audio</span>
+                        <span>
+                          {t.units.audioSeconds(
+                            (entry.durationMs / 1000).toFixed(1),
+                          )}
+                        </span>
                         <span>·</span>
                         <span className="truncate">{entry.model}</span>
                       </div>
@@ -179,7 +193,7 @@ export function HistoryPanel() {
                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <IconButton
                         onClick={() => handleCopy(entry)}
-                        label="Copier"
+                        label={t.common.copy}
                         active={copiedId === entry.id}
                       >
                         {copiedId === entry.id ? (
@@ -188,10 +202,14 @@ export function HistoryPanel() {
                           <Copy className="h-3 w-3" strokeWidth={2.2} />
                         )}
                       </IconButton>
-                      <IconButton onClick={() => startEdit(entry)} label="Modifier">
+                      <IconButton onClick={() => startEdit(entry)} label={t.common.edit}>
                         <Pencil className="h-3 w-3" strokeWidth={2.2} />
                       </IconButton>
-                      <IconButton onClick={() => handleDelete(entry)} label="Supprimer" danger>
+                      <IconButton
+                        onClick={() => handleDelete(entry)}
+                        label={t.common.delete}
+                        danger
+                      >
                         <Trash2 className="h-3 w-3" strokeWidth={2.2} />
                       </IconButton>
                     </div>
@@ -239,32 +257,20 @@ function IconButton({
 }
 
 function EmptyState() {
+  const t = useT();
   return (
     <div className="rounded-xl border border-dashed border-app px-6 py-16 text-center space-y-3">
       <div className="flex justify-center">
         <Inbox className="h-8 w-8 text-faint" strokeWidth={1.6} />
       </div>
-      <div className="text-[13px] text-soft font-medium">Aucune dictée pour le moment</div>
+      <div className="text-[13px] text-soft font-medium">
+        {t.settings.history.empty.title}
+      </div>
       <div className="text-[12px] text-muted max-w-[40ch] mx-auto leading-relaxed">
-        Appuie sur <span className="font-mono text-app">Ctrl + Space</span> n'importe où dans Windows et parle. Tes dictées apparaîtront ici.
+        {t.settings.history.empty.descriptionPrefix}{" "}
+        <span className="font-mono text-app">Ctrl + Space</span>{" "}
+        {t.settings.history.empty.descriptionSuffix}
       </div>
     </div>
   );
-}
-
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-
-  if (diff < 60_000) return "à l'instant";
-  if (diff < 3_600_000) return `il y a ${Math.floor(diff / 60_000)} min`;
-  if (diff < 86_400_000) return `il y a ${Math.floor(diff / 3_600_000)} h`;
-
-  return date.toLocaleString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }

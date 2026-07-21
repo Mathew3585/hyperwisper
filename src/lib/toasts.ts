@@ -1,47 +1,57 @@
 import { toast } from "sonner";
+import { getDictionary } from "@/i18n";
 import { events } from "./events";
+
+/**
+ * No hooks here: this module is wired from module scope, outside React. Read
+ * the dictionary inside each handler rather than once at import time, so a
+ * language change applies to the very next toast.
+ */
+const t = () => getDictionary().toast;
 
 /**
  * Subscribe once at app startup to every error-style event the Rust backend
  * emits. The settings window is the only one running this — the overlay's
  * pill has no room for toasts, so backend-side OS notifications cover the
  * "settings closed" case.
+ *
+ * Backend `err`/`msg` payloads are passed through untranslated: they are raw
+ * system messages, not UI copy.
  */
 export async function wireGlobalToasts() {
   events.onPasteError((err) => {
-    toast.warning("Collage automatique impossible", {
-      description:
-        "Le texte est dans ton presse-papier — colle-le avec Ctrl+V.",
+    toast.warning(t().pasteFailed.title, {
+      description: t().pasteFailed.description,
     });
     console.warn("paste:error", err);
   });
 
   events.onHotkeyConflict((combo) => {
-    toast.error("Raccourci déjà utilisé", {
+    toast.error(t().hotkeyConflict.title, {
       description: combo
-        ? `« ${combo} » est capturé par une autre app. Change-le dans Raccourcis.`
-        : "Une autre application a déjà capturé ce raccourci. Change-le dans Raccourcis.",
+        ? t().hotkeyConflict.withCombo(combo)
+        : t().hotkeyConflict.generic,
       duration: 8000,
     });
   });
 
   events.onDeviceDisconnect(() => {
-    toast.error("Microphone déconnecté", {
-      description: "L'enregistrement en cours a été annulé.",
+    toast.error(t().deviceDisconnect.title, {
+      description: t().deviceDisconnect.description,
     });
   });
 
   events.onModelLoadError((err) => {
-    toast.error("Modèle illisible", { description: err });
+    toast.error(t().modelLoadError.title, { description: err });
   });
 
   events.onRecordingError((msg) => {
-    toast.error("Transcription échouée", { description: msg });
+    toast.error(t().recordingError.title, { description: msg });
   });
 
   events.onRecordingNoVoice(() => {
-    toast.message("Aucune voix détectée", {
-      description: "L'enregistrement n'a capturé que du silence — rien n'a été collé.",
+    toast.message(t().noVoice.title, {
+      description: t().noVoice.description,
     });
   });
 }

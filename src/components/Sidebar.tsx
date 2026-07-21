@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Sparkle, ChevronRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useT } from "@/i18n";
 
 export interface NavItem {
   id: string;
@@ -12,7 +13,7 @@ interface SidebarProps {
   items: NavItem[];
   active: string;
   onSelect: (id: string) => void;
-  /** When set, the footer becomes a clickable "Compte" card that
+  /** When set, the footer becomes a clickable account card that
    *  routes to the given panel id. */
   accountPanelId?: string;
 }
@@ -23,10 +24,11 @@ export function Sidebar({
   onSelect,
   accountPanelId,
 }: SidebarProps) {
+  const t = useT();
   return (
     <aside className="w-[212px] flex-shrink-0 border-r border-app bg-app flex flex-col">
       <nav
-        aria-label="Sections des paramètres"
+        aria-label={t.sidebar.navAriaLabel}
         className="flex-1 px-2.5 pt-3 pb-2 space-y-px overflow-y-auto"
       >
         {items.map((item) => {
@@ -74,10 +76,11 @@ function AccountFooter({
   isActive: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
-      aria-label="Ouvrir le compte"
+      aria-label={t.sidebar.accountAriaLabel}
       aria-current={isActive ? "page" : undefined}
       className={`border-t border-app p-2.5 group transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))] ${
         isActive ? "bg-hover" : "hover:bg-[hsl(var(--hover)/0.5)]"
@@ -98,7 +101,7 @@ function AccountFooter({
             Hyperwisper
           </div>
           <div className="text-[10px] tracking-[0.06em] uppercase font-medium text-faint mt-px">
-            Compte
+            {t.sidebar.accountLabel}
           </div>
         </div>
         <ChevronRight

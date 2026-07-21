@@ -9,8 +9,11 @@ import {
 } from "@/lib/ipc";
 import { PanelHeader, SectionLabel } from "./common";
 import { Toggle } from "./toggle";
+import { LanguageSection } from "./LanguageSection";
+import { useT } from "@/i18n";
 
 export function AudioPanel() {
+  const t = useT();
   const [devices, setDevices] = useState<string[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -39,7 +42,7 @@ export function AudioPanel() {
   if (!settings) {
     return (
       <div className="space-y-8">
-        <PanelHeader title="Audio" description="Chargement…" />
+        <PanelHeader title={t.settings.audio.title} description={t.common.loading} />
       </div>
     );
   }
@@ -47,31 +50,31 @@ export function AudioPanel() {
   return (
     <div className="space-y-10">
       <PanelHeader
-        title="Audio"
-        description="Choisis ton micro et la façon dont la dictée se déclenche."
+        title={t.settings.audio.title}
+        description={t.settings.audio.description}
       />
 
       {/* Microphone */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <SectionLabel>Microphone</SectionLabel>
+          <SectionLabel>{t.settings.audio.microphoneTitle}</SectionLabel>
           {saving && (
             <span className="text-[10.5px] text-faint inline-flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Sauvegarde…
+              <Loader2 className="h-3 w-3 animate-spin" /> {t.common.saving}
             </span>
           )}
         </div>
         <div className="rounded-lg border border-app bg-elevated overflow-hidden">
           <MicRow
-            label="Périphérique système par défaut"
-            sublabel="Suit ton choix Windows automatiquement"
+            label={t.settings.audio.defaultDevice.label}
+            sublabel={t.settings.audio.defaultDevice.sublabel}
             isActive={settings.microphoneName === null}
             onClick={() => updateSetting("microphoneName", null)}
             isSystem
           />
           {devices.length === 0 && (
             <div className="px-4 py-5 text-[12.5px] text-muted border-t border-soft">
-              Aucun périphérique d'entrée détecté.
+              {t.settings.audio.noDevices}
             </div>
           )}
           {devices.map((d) => (
@@ -84,23 +87,23 @@ export function AudioPanel() {
           ))}
         </div>
         <p className="text-[11.5px] text-faint">
-          Si le micro choisi est débranché, Hyperwisper retombera automatiquement sur le défaut système.
+          {t.settings.audio.fallbackHint}
         </p>
       </section>
 
       {/* Mode */}
       <section className="space-y-3">
-        <SectionLabel>Mode d'enregistrement</SectionLabel>
+        <SectionLabel>{t.settings.audio.modeTitle}</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           <ModeCard
-            label="Toggle"
-            description="Une pression pour démarrer, une autre pour arrêter."
+            label={t.settings.audio.mode.toggleLabel}
+            description={t.settings.audio.mode.toggleDescription}
             active={settings.mode === "toggle"}
             onClick={() => updateSetting("mode", "toggle" as RecordingMode)}
           />
           <ModeCard
-            label="Push-to-talk"
-            description="Maintiens la touche pendant que tu parles."
+            label={t.settings.audio.mode.pttLabel}
+            description={t.settings.audio.mode.pttDescription}
             active={settings.mode === "pushtotalk"}
             onClick={() => updateSetting("mode", "pushtotalk" as RecordingMode)}
           />
@@ -109,11 +112,11 @@ export function AudioPanel() {
 
       {/* Overlay style */}
       <section className="space-y-3">
-        <SectionLabel>Overlay</SectionLabel>
+        <SectionLabel>{t.settings.audio.overlayTitle}</SectionLabel>
         <div className="grid grid-cols-2 gap-2">
           <OverlayStyleCard
-            label="Fat"
-            description="Pill complet avec waveform et chrono. Présence assumée."
+            label={t.settings.audio.overlay.fatLabel}
+            description={t.settings.audio.overlay.fatDescription}
             active={settings.overlayStyle === "fat"}
             preview={<FatPreview />}
             onClick={() =>
@@ -121,8 +124,8 @@ export function AudioPanel() {
             }
           />
           <OverlayStyleCard
-            label="Thin"
-            description="Sliver minimal, juste l'essentiel. Discret à l'écran."
+            label={t.settings.audio.overlay.thinLabel}
+            description={t.settings.audio.overlay.thinDescription}
             active={settings.overlayStyle === "thin"}
             preview={<ThinPreview />}
             onClick={() =>
@@ -131,41 +134,46 @@ export function AudioPanel() {
           />
         </div>
         <p className="text-[11.5px] text-faint">
-          Le changement s'applique au prochain enregistrement.
+          {t.settings.audio.overlayHint}
         </p>
       </section>
 
       {/* Paste options */}
       <section className="space-y-3">
-        <SectionLabel>Collage</SectionLabel>
+        <SectionLabel>{t.settings.audio.pasteTitle}</SectionLabel>
         <div className="space-y-2">
           <ToggleRow
             checked={settings.autoPaste}
             onChange={(v) => updateSetting("autoPaste", v)}
-            label="Coller automatiquement"
-            description="Le texte est inséré là où ton curseur est. Désactive pour juste copier dans le presse-papier."
+            label={t.settings.audio.autoPaste.label}
+            description={t.settings.audio.autoPaste.description}
           />
           <ToggleRow
             checked={settings.preserveClipboard}
             onChange={(v) => updateSetting("preserveClipboard", v)}
-            label="Préserver le presse-papier"
-            description="Restaure ce que tu avais copié avant la dictée, ~250 ms après le collage."
+            label={t.settings.audio.preserveClipboard.label}
+            description={t.settings.audio.preserveClipboard.description}
           />
         </div>
       </section>
 
       {/* Startup */}
       <section className="space-y-3">
-        <SectionLabel>Démarrage</SectionLabel>
+        <SectionLabel>{t.settings.audio.startupTitle}</SectionLabel>
         <div className="space-y-2">
           <ToggleRow
             checked={settings.autoLaunch}
             onChange={(v) => updateSetting("autoLaunch", v)}
-            label="Lancer au démarrage de Windows"
-            description="Hyperwisper se lance discrètement dans la barre des tâches dès l'ouverture de session, raccourci prêt à l'emploi."
+            label={t.settings.audio.autoLaunch.label}
+            description={t.settings.audio.autoLaunch.description}
           />
         </div>
       </section>
+
+      {/* Interface language. It sits here rather than in its own panel
+          because this screen already holds the non-audio preferences
+          (Startup above), and one picker doesn't justify a nav entry. */}
+      <LanguageSection />
     </div>
   );
 }

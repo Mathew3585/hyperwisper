@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { api } from "@/lib/ipc";
+import { useT } from "@/i18n";
+// Shared with the installer so the two never quote different model sizes.
+import { MODEL_SIZE_MB } from "./InstallerApp";
 
 type Step = "confirm" | "removing" | "done" | "error";
 
@@ -30,6 +33,7 @@ const INITIAL_STAGES: StageState = {
 };
 
 export function UninstallerApp() {
+  const t = useT();
   const [step, setStep] = useState<Step>("confirm");
   const [stages, setStages] = useState<StageState>(INITIAL_STAGES);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +102,7 @@ export function UninstallerApp() {
               {step === "done" && <DoneStep onClose={finishAndQuit} />}
               {step === "error" && (
                 <ErrorStep
-                  message={error ?? "Erreur inconnue"}
+                  message={error ?? t.uninstaller.error.unknown}
                   onClose={() => api.quitApp()}
                 />
               )}
@@ -113,6 +117,7 @@ export function UninstallerApp() {
 /* ─── Title bar ──────────────────────────────────────────────────────── */
 
 function TitleBar({ canClose }: { canClose: boolean }) {
+  const t = useT();
   const win = getCurrentWindow();
   return (
     <div
@@ -123,15 +128,19 @@ function TitleBar({ canClose }: { canClose: boolean }) {
         <Logo size={12} className="text-sand self-center" />
         <span className="text-[12px] font-medium tracking-tight text-app">hyperwisper</span>
         <span className="text-faint">·</span>
-        <span className="text-[10.5px] font-mono text-faint">désinstallation</span>
+        <span className="text-[10.5px] font-mono text-faint">
+          {t.uninstaller.titlebarSubtitle}
+        </span>
       </div>
       <div data-tauri-drag-region="false" className="flex items-center gap-px pr-1">
-        <WindowBtn onClick={() => win.minimize()} label="Réduire">
+        <WindowBtn onClick={() => win.minimize()} label={t.window.minimize}>
           <Minus className="h-3 w-3" strokeWidth={2.2} />
         </WindowBtn>
         <WindowBtn
           onClick={() => canClose && api.quitApp()}
-          label={canClose ? "Fermer" : "Fermer (indisponible pendant la désinstallation)"}
+          label={
+            canClose ? t.window.close : t.uninstaller.closeDisabledLabel
+          }
           danger
           disabled={!canClose}
         >
@@ -200,6 +209,7 @@ function ConfirmStep({
   onCancel: () => void;
   onUninstall: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-10">
@@ -212,33 +222,34 @@ function ConfirmStep({
 
         <div className="space-y-3">
           <h1 className="text-[36px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            Désinstaller Hyperwisper ?
+            {t.uninstaller.confirm.title}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Tout va être nettoyé proprement. Cette action est irréversible —
-            tes dictées passées ne seront plus récupérables.
+            {t.uninstaller.confirm.body}
           </p>
         </div>
 
         <div className="rounded-lg border border-app bg-elevated px-4 py-3.5 space-y-2.5">
           <div className="text-[10.5px] uppercase tracking-[0.1em] font-medium text-faint">
-            Ce qui sera supprimé
+            {t.uninstaller.confirm.listLabel}
           </div>
           <ul className="space-y-1.5">
-            <RemovedItem>Le binaire et le dossier d'installation</RemovedItem>
-            <RemovedItem>Le modèle Whisper téléchargé (~290 MB)</RemovedItem>
-            <RemovedItem>Tes réglages, ton historique, tes logs</RemovedItem>
-            <RemovedItem>Le raccourci menu Démarrer (et bureau s'il existe)</RemovedItem>
-            <RemovedItem>Le lancement automatique au démarrage</RemovedItem>
-            <RemovedItem>L'entrée "Hyperwisper" dans Applications installées</RemovedItem>
+            <RemovedItem>{t.uninstaller.confirm.itemBinary}</RemovedItem>
+            <RemovedItem>
+              {t.uninstaller.confirm.itemModel(MODEL_SIZE_MB)}
+            </RemovedItem>
+            <RemovedItem>{t.uninstaller.confirm.itemData}</RemovedItem>
+            <RemovedItem>{t.uninstaller.confirm.itemShortcuts}</RemovedItem>
+            <RemovedItem>{t.uninstaller.confirm.itemAutolaunch}</RemovedItem>
+            <RemovedItem>{t.uninstaller.confirm.itemRegistry}</RemovedItem>
           </ul>
         </div>
       </div>
 
       <NavRow>
-        <BackButton onClick={onCancel} label="Annuler" />
+        <BackButton onClick={onCancel} label={t.common.cancel} />
         <DangerButton onClick={onUninstall}>
-          Désinstaller
+          {t.uninstaller.confirm.cta}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </DangerButton>
       </NavRow>
@@ -258,30 +269,31 @@ function RemovedItem({ children }: { children: React.ReactNode }) {
 /* ─── Step 2: Removing ───────────────────────────────────────────────── */
 
 function RemovingStep({ stages }: { stages: StageState }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-12">
         <div className="space-y-2.5">
           <div className="text-[11px] uppercase tracking-[0.12em] font-medium" style={{ color: "hsl(var(--ember))" }}>
-            Désinstallation en cours
+            {t.uninstaller.removing.eyebrow}
           </div>
           <h1 className="text-[32px] leading-[1.1] font-semibold tracking-[-0.03em] text-app">
-            On nettoie tout.
+            {t.uninstaller.removing.title}
           </h1>
           <p className="text-[13.5px] leading-relaxed text-soft max-w-[44ch]">
-            Ne ferme pas la fenêtre. C'est rapide.
+            {t.uninstaller.removing.body}
           </p>
         </div>
 
         <div className="space-y-1">
           <StageRow
-            label="Suppression des fichiers et données"
-            sublabel="Réglages, historique, modèle, logs, raccourcis"
+            label={t.uninstaller.stage.cleanupLabel}
+            sublabel={t.uninstaller.stage.cleanupSublabel}
             state={stages.cleanup}
           />
           <StageRow
-            label="Nettoyage du registre Windows"
-            sublabel="Entrée Désinstaller · démarrage automatique"
+            label={t.uninstaller.stage.finalizeLabel}
+            sublabel={t.uninstaller.stage.finalizeSublabel}
             state={stages.finalize}
           />
         </div>
@@ -362,6 +374,7 @@ function StageIcon({ state }: { state: "pending" | "running" | "done" }) {
 /* ─── Step 3: Done ───────────────────────────────────────────────────── */
 
 function DoneStep({ onClose }: { onClose: () => void }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-10">
@@ -377,11 +390,10 @@ function DoneStep({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-3">
           <h1 className="text-[36px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            Merci d'avoir essayé.
+            {t.uninstaller.done.title}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Hyperwisper est désinstallé. Le dossier sera supprimé dès que la
-            fenêtre se ferme. Si tu reviens un jour, on sera là.
+            {t.uninstaller.done.body}
           </p>
         </div>
       </div>
@@ -389,7 +401,7 @@ function DoneStep({ onClose }: { onClose: () => void }) {
       <NavRow>
         <span />
         <PrimaryButton onClick={onClose}>
-          Fermer
+          {t.common.close}
           <Check className="h-3.5 w-3.5" strokeWidth={2.8} />
         </PrimaryButton>
       </NavRow>
@@ -406,6 +418,7 @@ function ErrorStep({
   message: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const display = useMemo(() => message.slice(0, 600), [message]);
   return (
     <div className="flex-1 flex flex-col">
@@ -418,14 +431,14 @@ function ErrorStep({
         </div>
         <div className="space-y-3">
           <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.025em] text-app">
-            Désinstallation incomplète.
+            {t.uninstaller.error.title}
           </h1>
           <p className="text-[13.5px] leading-relaxed text-soft max-w-[44ch]">
-            Voici ce que le système a rapporté. Tu peux supprimer le dossier
-            d'installation manuellement, et nettoyer la clé registre
+            {t.uninstaller.error.bodyPrefix}
             <span className="font-mono text-[11px] ml-1">
               HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Hyperwisper
-            </span>.
+            </span>
+            {t.uninstaller.error.bodySuffix}
           </p>
         </div>
         <div
@@ -442,7 +455,7 @@ function ErrorStep({
       <NavRow>
         <span />
         <PrimaryButton onClick={onClose}>
-          Fermer
+          {t.common.close}
           <X className="h-3.5 w-3.5" strokeWidth={2.6} />
         </PrimaryButton>
       </NavRow>
@@ -460,14 +473,19 @@ function NavRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BackButton({ onClick, label = "Retour" }: { onClick: () => void; label?: string }) {
+// `label` cannot default in the destructuring parameter: default values are
+// evaluated outside the React render context, so the hook has to run in the
+// body and the fallback applied here.
+function BackButton({ onClick, label }: { onClick: () => void; label?: string }) {
+  const t = useT();
+  const text = label ?? t.common.back;
   return (
     <button
       onClick={onClick}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12.5px] text-muted hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
     >
       <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
-      {label}
+      {text}
     </button>
   );
 }

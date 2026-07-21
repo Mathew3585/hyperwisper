@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Command, AlertTriangle, X, Check } from "lucide-react";
 import { api, type AppSettings } from "@/lib/ipc";
+import { useT } from "@/i18n";
 import { PanelHeader, SectionLabel } from "./common";
 
 export function ShortcutsPanel() {
+  const t = useT();
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +29,10 @@ export function ShortcutsPanel() {
   if (!settings) {
     return (
       <div className="space-y-8">
-        <PanelHeader title="Raccourcis" description="Chargement…" />
+        <PanelHeader
+          title={t.settings.shortcuts.title}
+          description={t.common.loading}
+        />
       </div>
     );
   }
@@ -35,12 +40,12 @@ export function ShortcutsPanel() {
   return (
     <div className="space-y-10">
       <PanelHeader
-        title="Raccourcis"
-        description="La touche que tu maintiens ou presses pour démarrer une dictée."
+        title={t.settings.shortcuts.title}
+        description={t.settings.shortcuts.description}
       />
 
       <section className="space-y-3">
-        <SectionLabel>Raccourci principal</SectionLabel>
+        <SectionLabel>{t.settings.shortcuts.mainLabel}</SectionLabel>
         <HotkeyEditor
           current={settings.hotkey}
           onSave={saveHotkey}
@@ -60,34 +65,38 @@ export function ShortcutsPanel() {
           </div>
         )}
         <p className="text-[11.5px] text-faint leading-relaxed">
-          Conseil — évite{" "}
+          {t.settings.shortcuts.imeTip.prefix}{" "}
           <KeyChip>Ctrl + Space</KeyChip>{" "}
-          si tu as activé un IME Windows (chinois, japonais, coréen). Essaie{" "}
-          <KeyChip>Ctrl + Shift + Space</KeyChip> ou{" "}
-          <KeyChip>F8</KeyChip>{" "}
-          comme alternatives.
+          {t.settings.shortcuts.imeTip.middle}{" "}
+          <KeyChip>Ctrl + Shift + Space</KeyChip>{" "}
+          {t.settings.shortcuts.imeTip.or} <KeyChip>F8</KeyChip>{" "}
+          {t.settings.shortcuts.imeTip.suffix}
         </p>
       </section>
 
       <section className="space-y-3">
-        <SectionLabel>Mode</SectionLabel>
+        <SectionLabel>{t.settings.shortcuts.modeLabel}</SectionLabel>
         <div className="rounded-lg border border-app bg-elevated px-4 py-3 text-[13px] text-soft leading-relaxed">
           {settings.mode === "toggle" ? (
             <>
-              <span className="font-medium text-app">Toggle</span> — une pression
-              pour démarrer, une autre pour arrêter. Idéal pour les longues
-              dictées.
+              <span className="font-medium text-app">
+                {t.settings.shortcuts.modeToggle.name}
+              </span>{" "}
+              {t.settings.shortcuts.modeToggle.description}
             </>
           ) : (
             <>
-              <span className="font-medium text-app">Push-to-talk</span> —
-              maintiens la touche tant que tu parles, relâche pour stopper.
-              Idéal pour les phrases courtes.
+              <span className="font-medium text-app">
+                {t.settings.shortcuts.modePtt.name}
+              </span>{" "}
+              {t.settings.shortcuts.modePtt.description}
             </>
           )}
         </div>
         <p className="text-[11.5px] text-faint">
-          Pour changer de mode, va dans l'onglet <span className="text-soft">Audio</span>.
+          {t.settings.shortcuts.changeModeHintPrefix}{" "}
+          <span className="text-soft">{t.nav.audio}</span>{" "}
+          {t.settings.shortcuts.changeModeHintSuffix}
         </p>
       </section>
     </div>
@@ -105,6 +114,7 @@ export function HotkeyEditor({
   onSave: (s: string) => void;
   mode?: "toggle" | "pushtotalk";
 }) {
+  const t = useT();
   const [capturing, setCapturing] = useState(false);
   const [captured, setCaptured] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -165,7 +175,9 @@ export function HotkeyEditor({
                   animate={{ opacity: [0.4, 1, 0.4] }}
                   transition={{ duration: 1.2, repeat: Infinity }}
                 />
-                <span className="text-soft">Appuie sur ta combinaison…</span>
+                <span className="text-soft">
+                  {t.settings.shortcuts.editor.capturing}
+                </span>
                 {captured && (
                   <span className="ml-2 px-2 py-0.5 rounded font-mono text-[12px] bg-sand-soft text-sand">
                     {captured}
@@ -198,7 +210,7 @@ export function HotkeyEditor({
             onClick={() => setCapturing(true)}
             className="text-[12px] font-medium px-3 py-1.5 rounded-md bg-elevated hover:bg-hover border border-app transition-colors"
           >
-            Modifier
+            {t.common.edit}
           </button>
         )}
       </div>
@@ -206,7 +218,8 @@ export function HotkeyEditor({
       {capturing && (
         <div className="flex items-center justify-between gap-2 pt-1">
           <span className="text-[11px] text-faint">
-            <span className="font-mono">Esc</span> pour annuler
+            <span className="font-mono">Esc</span>{" "}
+            {t.settings.shortcuts.editor.escHintSuffix}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -218,7 +231,7 @@ export function HotkeyEditor({
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] text-muted hover:bg-hover transition-colors"
             >
               <X className="h-3 w-3" strokeWidth={2.4} />
-              Annuler
+              {t.common.cancel}
             </button>
             <button
               onClick={commit}
@@ -230,7 +243,7 @@ export function HotkeyEditor({
               }}
             >
               <Check className="h-3 w-3" strokeWidth={3} />
-              Enregistrer
+              {t.common.save}
             </button>
           </div>
         </div>
@@ -238,14 +251,15 @@ export function HotkeyEditor({
 
       {mode && (
         <div className="text-[11px] text-faint pt-1 border-t border-soft">
-          En mode{" "}
+          {t.settings.shortcuts.editor.modeHintPrefix}{" "}
           <span className="text-soft font-medium">
-            {mode === "toggle" ? "Toggle" : "Push-to-talk"}
-          </span>
-          ,{" "}
+            {mode === "toggle"
+              ? t.settings.shortcuts.modeToggle.name
+              : t.settings.shortcuts.modePtt.name}
+          </span>{" "}
           {mode === "toggle"
-            ? "appuie une fois pour démarrer et une fois pour arrêter."
-            : "maintiens la touche pendant que tu parles."}
+            ? t.settings.shortcuts.editor.modeHintToggle
+            : t.settings.shortcuts.editor.modeHintPtt}
         </div>
       )}
     </div>

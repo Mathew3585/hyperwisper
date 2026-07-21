@@ -19,9 +19,17 @@ import {
 import { Logo } from "@/components/Logo";
 import { api, type InstallerStatus, type Model } from "@/lib/ipc";
 import { events, type DownloadProgress } from "@/lib/events";
+import { useT } from "@/i18n";
 
 const RECOMMENDED_MODEL: Model = "small-q5_1";
 const RECOMMENDED_FILENAME = "ggml-small-q5_1.bin";
+/**
+ * Approximate on-disk size of the default Whisper model. The installer has no
+ * runtime figure to read before the download starts, so the copy quotes this.
+ * The uninstaller imports it rather than repeating the number, so the two can
+ * never disagree.
+ */
+export const MODEL_SIZE_MB = 290;
 
 type Step = "pitch" | "configure" | "installing" | "done" | "error";
 
@@ -40,6 +48,7 @@ const INITIAL_STAGES: StageState = {
 };
 
 export function InstallerApp() {
+  const t = useT();
   const [step, setStep] = useState<Step>("pitch");
   const [status, setStatus] = useState<InstallerStatus | null>(null);
   const [installDir, setInstallDir] = useState<string>("");
@@ -70,7 +79,7 @@ export function InstallerApp() {
         directory: true,
         multiple: false,
         defaultPath: installDir || undefined,
-        title: "Choisis le dossier d'installation",
+        title: t.installer.dirPickerTitle,
       });
       if (typeof result === "string" && result.length > 0) {
         // Ensure the chosen dir ends in `Hyperwisper` — if the user picked a
@@ -168,7 +177,7 @@ export function InstallerApp() {
               )}
               {step === "error" && (
                 <ErrorStep
-                  message={error ?? "Erreur inconnue"}
+                  message={error ?? t.installer.error.unknown}
                   onRetry={() => setStep("configure")}
                 />
               )}
@@ -183,6 +192,7 @@ export function InstallerApp() {
 /* ─── Title bar with window controls ─────────────────────────────────── */
 
 function TitleBar() {
+  const t = useT();
   const win = getCurrentWindow();
 
   async function close() {
@@ -204,13 +214,15 @@ function TitleBar() {
         <Logo size={12} className="text-sand self-center" />
         <span className="text-[12px] font-medium tracking-tight text-app">hyperwisper</span>
         <span className="text-faint">·</span>
-        <span className="text-[10.5px] font-mono text-faint">installation</span>
+        <span className="text-[10.5px] font-mono text-faint">
+          {t.installer.titlebarSubtitle}
+        </span>
       </div>
       <div data-tauri-drag-region="false" className="flex items-center gap-px pr-1">
-        <WindowBtn onClick={() => win.minimize()} label="Réduire">
+        <WindowBtn onClick={() => win.minimize()} label={t.window.minimize}>
           <Minus className="h-3 w-3" strokeWidth={2.2} />
         </WindowBtn>
-        <WindowBtn onClick={close} label="Fermer" danger>
+        <WindowBtn onClick={close} label={t.window.close} danger>
           <X className="h-3 w-3" strokeWidth={2.4} />
         </WindowBtn>
       </div>
@@ -268,6 +280,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
 /* ─── Step 1: Pitch ──────────────────────────────────────────────────── */
 
 function PitchStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-10">
@@ -275,12 +288,12 @@ function PitchStep({ onNext }: { onNext: () => void }) {
 
         <div className="space-y-4">
           <h1 className="text-[44px] leading-[1.02] font-semibold tracking-[-0.04em] text-app">
-            Plus rapide<br />que le clavier.
+            {t.installer.pitch.titleLine1}
+            <br />
+            {t.installer.pitch.titleLine2}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Hyperwisper transforme ta voix en texte, instantanément, partout
-            dans Windows. Tu maintiens un raccourci, tu parles, le texte se
-            colle là où ton curseur se trouve.
+            {t.installer.pitch.body}
           </p>
         </div>
 
@@ -288,27 +301,27 @@ function PitchStep({ onNext }: { onNext: () => void }) {
           <PitchStat
             icon={<Zap className="h-3 w-3" strokeWidth={2.4} />}
             value="3×"
-            label="plus rapide qu'écrire"
+            label={t.installer.pitch.statSpeed}
           />
           <PitchStat
             icon={<Lock className="h-3 w-3" strokeWidth={2.4} />}
             value="100%"
-            label="local, aucun cloud"
+            label={t.installer.pitch.statLocal}
           />
           <PitchStat
             icon={<Sparkle className="h-3 w-3" strokeWidth={2.4} />}
             value="0 €"
-            label="gratuit pour toujours"
+            label={t.installer.pitch.statFree}
           />
         </div>
       </div>
 
       <NavRow>
         <span className="text-[11px] text-faint">
-          Installation locale · Pas de droits administrateur
+          {t.installer.pitch.footnote}
         </span>
         <PrimaryButton onClick={onNext}>
-          Commencer
+          {t.installer.pitch.cta}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -362,6 +375,7 @@ function ConfigureStep({
   onBack: () => void;
   onInstall: () => void;
 }) {
+  const t = useT();
   const reinstall = status?.installExists ?? false;
   const isDefault =
     status !== null && installDir === status.defaultInstallDir;
@@ -371,27 +385,27 @@ function ConfigureStep({
       <div className="flex-1 space-y-10">
         <div className="space-y-3">
           <div className="text-[11px] uppercase tracking-[0.12em] font-medium text-sand">
-            {reinstall ? "Réinstallation" : "Installation"}
+            {reinstall
+              ? t.installer.configure.eyebrowReinstall
+              : t.installer.configure.eyebrowInstall}
           </div>
           <h2 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.03em] text-app">
-            Où veux-tu installer Hyperwisper ?
+            {t.installer.configure.title}
           </h2>
           <p className="text-[13.5px] leading-relaxed text-soft max-w-[48ch]">
-            Garde le dossier par défaut si tu n'as pas de raison particulière.
-            Hyperwisper s'installe pour ton utilisateur uniquement — pas besoin
-            d'admin.
+            {t.installer.configure.body}
           </p>
         </div>
 
         <section className="space-y-3">
-          <Label>Dossier d'installation</Label>
+          <Label>{t.installer.configure.dirLabel}</Label>
           <div className="rounded-lg border border-app bg-elevated p-2 flex items-center gap-2">
             <div className="flex-1 px-2 py-1.5 rounded-md bg-app border border-app overflow-hidden">
               <div
                 className="text-[12.5px] font-mono text-app truncate"
                 title={installDir}
               >
-                {installDir || "Chargement…"}
+                {installDir || t.common.loading}
               </div>
             </div>
             <button
@@ -399,29 +413,29 @@ function ConfigureStep({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-app border border-app bg-elevated hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
             >
               <FolderOpen className="h-3 w-3" strokeWidth={2.4} />
-              Modifier
+              {t.common.edit}
             </button>
           </div>
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-faint">
-              Le binaire et le modèle Whisper (~290 MB) y seront copiés.
+              {t.installer.configure.dirHint(MODEL_SIZE_MB)}
             </p>
             {!isDefault && status && (
               <button
                 onClick={onResetDir}
                 className="text-[11px] text-muted hover:text-app transition-colors"
               >
-                Restaurer le défaut
+                {t.installer.configure.resetDir}
               </button>
             )}
           </div>
         </section>
 
         <section className="space-y-3">
-          <Label>Options</Label>
+          <Label>{t.installer.configure.optionsLabel}</Label>
           <Choice
-            label="Ajouter un raccourci sur le bureau"
-            description="Un raccourci Menu Démarrer est créé dans tous les cas."
+            label={t.installer.configure.desktopShortcut.label}
+            description={t.installer.configure.desktopShortcut.description}
             checked={createDesktop}
             onChange={onToggleDesktop}
           />
@@ -434,7 +448,9 @@ function ConfigureStep({
           onClick={onInstall}
           disabled={!installDir}
         >
-          {reinstall ? "Réinstaller" : "Installer"}
+          {reinstall
+            ? t.installer.configure.ctaReinstall
+            : t.installer.configure.ctaInstall}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -495,40 +511,45 @@ function InstallingStep({
   stages: StageState;
   progress: DownloadProgress | null;
 }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-12">
         <div className="space-y-2.5">
           <div className="text-[11px] uppercase tracking-[0.12em] font-medium text-sand">
-            Installation en cours
+            {t.installer.installing.eyebrow}
           </div>
           <h1 className="text-[32px] leading-[1.1] font-semibold tracking-[-0.03em] text-app">
-            On t'installe ça.
+            {t.installer.installing.title}
           </h1>
           <p className="text-[13.5px] leading-relaxed text-soft max-w-[44ch]">
-            Garde la fenêtre ouverte. Ça prend une minute, le temps de récupérer le modèle.
+            {t.installer.installing.body}
           </p>
         </div>
 
         <div className="space-y-1">
           <StageRow
-            label="Copie des fichiers"
-            sublabel="Dépose le binaire et enregistre l'entrée Désinstaller"
+            label={t.installer.stage.copyLabel}
+            sublabel={t.installer.stage.copySublabel}
             state={stages.copy}
           />
           <StageRow
-            label="Téléchargement du modèle Whisper"
+            label={t.installer.stage.modelLabel}
             sublabel={
               progress && stages.model === "running"
-                ? `${(progress.bytes / (1024 * 1024)).toFixed(1)} / ${(progress.total / (1024 * 1024)).toFixed(1)} MB · ${progress.percent.toFixed(0)}%`
-                : "Modèle Small Q5_1 — environ 290 MB"
+                ? t.installer.stage.modelProgress(
+                    (progress.bytes / (1024 * 1024)).toFixed(1),
+                    (progress.total / (1024 * 1024)).toFixed(1),
+                    progress.percent.toFixed(0),
+                  )
+                : t.installer.stage.modelSublabel(MODEL_SIZE_MB)
             }
             state={stages.model}
             progress={stages.model === "running" ? progress?.percent : undefined}
           />
           <StageRow
-            label="Création des raccourcis"
-            sublabel="Menu Démarrer · entrée dans Applications installées"
+            label={t.installer.stage.finalizeLabel}
+            sublabel={t.installer.stage.finalizeSublabel}
             state={stages.finalize}
           />
         </div>
@@ -626,6 +647,7 @@ function DoneStep({
   onLaunch: () => void;
   installDir: string;
 }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-10">
@@ -641,16 +663,16 @@ function DoneStep({
 
         <div className="space-y-3">
           <h1 className="text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            Hyperwisper est installé.
+            {t.installer.done.title}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Tu peux supprimer ce setup. Hyperwisper vit maintenant dans le menu Démarrer.
+            {t.installer.done.body}
           </p>
         </div>
 
         <div className="rounded-lg border border-app bg-elevated px-3.5 py-2.5">
           <div className="text-[10.5px] uppercase tracking-[0.1em] font-medium text-faint mb-1">
-            Installé dans
+            {t.installer.done.installedInLabel}
           </div>
           <div
             className="text-[12.5px] font-mono text-app truncate"
@@ -664,7 +686,7 @@ function DoneStep({
       <NavRow>
         <span />
         <PrimaryButton onClick={onLaunch}>
-          Lancer Hyperwisper
+          {t.installer.done.cta}
           <Rocket className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -681,6 +703,7 @@ function ErrorStep({
   message: string;
   onRetry: () => void;
 }) {
+  const t = useT();
   const display = useMemo(() => message.slice(0, 600), [message]);
   return (
     <div className="flex-1 flex flex-col">
@@ -693,10 +716,10 @@ function ErrorStep({
         </div>
         <div className="space-y-3">
           <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.025em] text-app">
-            Installation interrompue.
+            {t.installer.error.title}
           </h1>
           <p className="text-[13.5px] leading-relaxed text-soft max-w-[44ch]">
-            Voici ce que le système a rapporté. Réessaie — si ça persiste, c'est probablement un antivirus qui bloque la copie ou une coupure réseau pendant le téléchargement.
+            {t.installer.error.body}
           </p>
         </div>
         <div
@@ -713,7 +736,7 @@ function ErrorStep({
       <NavRow>
         <span />
         <PrimaryButton onClick={onRetry}>
-          Réessayer
+          {t.common.retry}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -740,13 +763,14 @@ function NavRow({ children }: { children: React.ReactNode }) {
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12.5px] text-muted hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
     >
       <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
-      Retour
+      {t.common.back}
     </button>
   );
 }

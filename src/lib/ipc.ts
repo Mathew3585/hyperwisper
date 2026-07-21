@@ -70,10 +70,25 @@ export interface InstallerStatus {
   currentExe: string;
 }
 
+/** Localised text for the Windows tray menu, pushed down from the front-end. */
+export interface TrayLabels {
+  open: string;
+  status: string;
+  quit: string;
+  tooltip: string;
+}
+
 export const api = {
   ping: () => invoke<string>("ping"),
   openSettingsWindow: () => invoke<void>("open_settings_window"),
   quitApp: () => invoke<void>("quit_app"),
+
+  /**
+   * The tray menu is built by Rust but worded by us — the backend holds no
+   * dictionary, so we send it the strings already translated.
+   */
+  setTrayLabels: (labels: TrayLabels) =>
+    invoke<void>("set_tray_labels", { labels }),
 
   installerStatus: () => invoke<InstallerStatus>("installer_status"),
   installerInstall: (installDir: string, createDesktopShortcut: boolean) =>

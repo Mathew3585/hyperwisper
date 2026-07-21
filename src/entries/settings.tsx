@@ -7,10 +7,15 @@ import { UninstallerApp } from "@/windows/installer/UninstallerApp";
 import { api, type InstallerStatus } from "@/lib/ipc";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 import { wireGlobalToasts } from "@/lib/toasts";
+import { I18nProvider, detectLocale } from "@/i18n";
 import "@/styles/globals.css";
 
 // Apply persisted theme before first paint to avoid a flash of wrong colors.
 applyTheme(getStoredTheme());
+
+// Same reasoning for language: set <html lang> up front so the webview never
+// paints a frame with the wrong hyphenation or spell-check dictionary.
+document.documentElement.lang = detectLocale();
 
 // Subscribe to backend error events (paste, hotkey, device) and surface them
 // as toasts. Lives at the entry-point level so it's active even when the
@@ -55,13 +60,15 @@ if (!root) throw new Error("Missing #root element");
 
 createRoot(root).render(
   <React.StrictMode>
-    <Root />
-    <Toaster
-      position="bottom-right"
-      theme="system"
-      richColors
-      closeButton
-      toastOptions={{ duration: 5000 }}
-    />
+    <I18nProvider>
+      <Root />
+      <Toaster
+        position="bottom-right"
+        theme="system"
+        richColors
+        closeButton
+        toastOptions={{ duration: 5000 }}
+      />
+    </I18nProvider>
   </React.StrictMode>
 );

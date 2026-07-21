@@ -3,18 +3,12 @@ import { motion } from "framer-motion";
 import { Sparkle, Check } from "lucide-react";
 import { api, type HistoryEntry, type ModelStatus } from "@/lib/ipc";
 import { events } from "@/lib/events";
+import { useI18n, useT, type Dictionary } from "@/i18n";
 import { PanelHeader, SectionLabel } from "./common";
 
-const INCLUDED = [
-  "Dictée illimitée, sans abonnement",
-  "Tous les modèles Whisper accessibles",
-  "Transcription 100% locale (offline)",
-  "Auto-paste là où ton curseur est",
-  "Historique complet, recherche, export",
-  "Accélération GPU (Vulkan) embarquée",
-];
-
 export function AccountPanel({ models }: { models: ModelStatus[] }) {
+  const t = useT();
+  const { intlLocale } = useI18n();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
@@ -31,7 +25,10 @@ export function AccountPanel({ models }: { models: ModelStatus[] }) {
 
   return (
     <div className="space-y-12">
-      <PanelHeader title="Compte" description="Ton activité et ton setup." />
+      <PanelHeader
+        title={t.settings.account.title}
+        description={t.settings.account.description}
+      />
 
       <motion.section
         initial={{ opacity: 0, y: 6 }}
@@ -47,15 +44,14 @@ export function AccountPanel({ models }: { models: ModelStatus[] }) {
         </div>
         <div className="space-y-1.5">
           <div className="text-[22px] font-semibold tracking-[-0.025em] text-app">
-            Tout est inclus.
+            {t.settings.account.heroTitle}
           </div>
           <p className="text-[13px] leading-relaxed text-soft max-w-[52ch]">
-            Hyperwisper est gratuit et open-source. Aucune fonctionnalité n'est
-            verrouillée, aucun abonnement.
+            {t.settings.account.heroBody}
           </p>
         </div>
         <div className="pt-2 grid grid-cols-1 gap-1.5">
-          {INCLUDED.map((f) => (
+          {t.settings.account.included.map((f) => (
             <div key={f} className="flex items-center gap-2 text-[12.5px] text-soft">
               <Check className="h-3 w-3 text-moss flex-shrink-0" strokeWidth={3} />
               <span>{f}</span>
@@ -70,11 +66,20 @@ export function AccountPanel({ models }: { models: ModelStatus[] }) {
         transition={{ duration: 0.4, delay: 0.06 }}
         className="space-y-3"
       >
-        <SectionLabel>Activité totale</SectionLabel>
+        <SectionLabel>{t.settings.account.totalsLabel}</SectionLabel>
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Dictées" value={totalDictations.toString()} />
-          <Stat label="Mots transcrits" value={totalWords.toLocaleString("fr-FR")} />
-          <Stat label="Audio capturé" value={formatAudio(totalAudioSec)} />
+          <Stat
+            label={t.settings.account.stat.dictations}
+            value={totalDictations.toLocaleString(intlLocale)}
+          />
+          <Stat
+            label={t.settings.account.stat.words}
+            value={totalWords.toLocaleString(intlLocale)}
+          />
+          <Stat
+            label={t.settings.account.stat.audio}
+            value={formatAudio(totalAudioSec, t)}
+          />
         </div>
       </motion.section>
 
@@ -84,10 +89,14 @@ export function AccountPanel({ models }: { models: ModelStatus[] }) {
         transition={{ duration: 0.4, delay: 0.12 }}
         className="space-y-3"
       >
-        <SectionLabel>Setup actuel</SectionLabel>
+        <SectionLabel>{t.settings.account.setupLabel}</SectionLabel>
         <div className="rounded-lg border border-app bg-elevated overflow-hidden">
-          <Row label="Modèle actif" value={activeModel?.displayName ?? "Aucun"} mono />
-          <Row label="Version" value="v0.1.0" mono />
+          <Row
+            label={t.settings.account.rowActiveModel}
+            value={activeModel?.displayName ?? t.common.none}
+            mono
+          />
+          <Row label={t.settings.account.rowVersion} value="v0.1.0" mono />
         </div>
       </motion.section>
     </div>
@@ -128,8 +137,8 @@ function Row({
   );
 }
 
-function formatAudio(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
-  return `${(seconds / 3600).toFixed(1)} h`;
+function formatAudio(seconds: number, t: Dictionary): string {
+  if (seconds < 60) return t.units.seconds(Math.round(seconds));
+  if (seconds < 3600) return t.units.minutesLong(Math.floor(seconds / 60));
+  return t.units.hoursLong(Number((seconds / 3600).toFixed(1)));
 }

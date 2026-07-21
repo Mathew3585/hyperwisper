@@ -14,6 +14,7 @@ import {
 import { Logo } from "@/components/Logo";
 import { api, type AppSettings, type Model, type ModelStatus } from "@/lib/ipc";
 import { events, type DownloadProgress } from "@/lib/events";
+import { useT } from "@/i18n";
 import { HotkeyEditor } from "../panels/ShortcutsPanel";
 import { Kbd } from "../panels/common";
 
@@ -26,6 +27,10 @@ const RECOMMENDED_MODEL: Model = "small-q5_1";
 // (e.g. `SmallQ5_1` can render as `small-q5-1` instead of `small-q5_1`).
 // The filename is hardcoded in Rust, so it never drifts.
 const RECOMMENDED_FILENAME = "ggml-small-q5_1.bin";
+// Single source of truth for the mic test: the API call and the copy that
+// tells the user how long to speak both read from this, so they cannot drift.
+const TEST_DURATION_MS = 3000;
+const TEST_DURATION_S = TEST_DURATION_MS / 1000;
 
 interface Props {
   settings: AppSettings;
@@ -135,29 +140,29 @@ function Progress({ current, total }: { current: number; total: number }) {
 /* ─── Step 1: Welcome ───────────────────────────────────── */
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 flex flex-col justify-center space-y-10">
         <Logo size={72} className="text-sand" />
         <div className="space-y-3">
           <h1 className="text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            Bienvenue dans Hyperwisper.
+            {t.onboarding.welcome.title}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            La dictée vocale instantanée pour Windows. Tu parles, le texte se
-            colle là où ton curseur est. Tout reste sur ton PC.
+            {t.onboarding.welcome.body}
           </p>
         </div>
         <div className="flex flex-col gap-2 text-[12.5px] text-soft">
-          <Bullet>100% local — aucun audio ne quitte ta machine</Bullet>
-          <Bullet>Gratuit pour toujours, open-source</Bullet>
-          <Bullet>Trois minutes pour configurer, c'est parti</Bullet>
+          <Bullet>{t.onboarding.welcome.bullet1}</Bullet>
+          <Bullet>{t.onboarding.welcome.bullet2}</Bullet>
+          <Bullet>{t.onboarding.welcome.bullet3}</Bullet>
         </div>
       </div>
       <NavRow>
         <span />
         <PrimaryButton onClick={onNext}>
-          Commencer
+          {t.onboarding.welcome.cta}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -187,6 +192,7 @@ function MicStep({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const [devices, setDevices] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState(false);
@@ -223,7 +229,7 @@ function MicStep({
     setTesting(true);
     setTested(false);
     try {
-      await api.testMicrophone(3000);
+      await api.testMicrophone(TEST_DURATION_MS);
     } catch (err) {
       console.error("test_microphone failed:", err);
     } finally {
@@ -238,16 +244,16 @@ function MicStep({
       <div className="flex-1 space-y-10">
         <StepHeader
           icon={<Mic className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          title="Ton microphone"
-          description="Choisis le micro qu'Hyperwisper doit écouter, puis fais un test rapide."
+          title={t.onboarding.mic.title}
+          description={t.onboarding.mic.description}
         />
 
         <div className="space-y-3">
-          <Label>Microphone</Label>
+          <Label>{t.onboarding.mic.deviceLabel}</Label>
           <div className="rounded-lg border border-app bg-elevated overflow-hidden">
             <MicRow
-              label="Périphérique système par défaut"
-              sublabel="Suit ton choix Windows"
+              label={t.onboarding.mic.defaultDevice.label}
+              sublabel={t.onboarding.mic.defaultDevice.sublabel}
               isActive={settings.microphoneName === null}
               onClick={() => onChange({ ...settings, microphoneName: null })}
             />
@@ -261,14 +267,14 @@ function MicStep({
             ))}
             {devices.length === 0 && (
               <div className="px-4 py-3 text-[12.5px] text-muted border-t border-soft">
-                Aucun autre micro détecté.
+                {t.onboarding.mic.noDevices}
               </div>
             )}
           </div>
         </div>
 
         <div className="space-y-3">
-          <Label>Test (3 secondes)</Label>
+          <Label>{t.onboarding.mic.testLabel(TEST_DURATION_S)}</Label>
           <div className="rounded-lg border border-app bg-elevated p-4 space-y-3">
             <div className="flex items-center gap-3">
               <button
@@ -283,26 +289,28 @@ function MicStep({
               >
                 {testing ? (
                   <>
-                    <Loader2 className="h-3 w-3 animate-spin" /> Écoute…
+                    <Loader2 className="h-3 w-3 animate-spin" />{" "}
+                    {t.onboarding.mic.listening}
                   </>
                 ) : (
                   <>
                     <Volume2 className="h-3 w-3" strokeWidth={2.4} />
-                    {tested ? "Refaire" : "Tester"}
+                    {tested
+                      ? t.onboarding.mic.retestButton
+                      : t.onboarding.mic.testButton}
                   </>
                 )}
               </button>
               {tested && (
                 <span className="inline-flex items-center gap-1.5 text-[12px] text-moss">
                   <Check className="h-3 w-3" strokeWidth={3} />
-                  Son détecté
+                  {t.onboarding.mic.soundDetected}
                 </span>
               )}
             </div>
             <LevelBar level={level} active={testing} />
             <p className="text-[11.5px] text-faint leading-relaxed">
-              Parle normalement pendant 3 secondes. La barre devrait s'animer.
-              Si elle reste plate, change de micro au-dessus.
+              {t.onboarding.mic.testHint(TEST_DURATION_S)}
             </p>
           </div>
         </div>
@@ -313,9 +321,9 @@ function MicStep({
         <PrimaryButton
           onClick={onNext}
           disabled={!tested}
-          hint={!tested ? "Fais un test avant de continuer" : undefined}
+          hint={!tested ? t.onboarding.mic.nextHint : undefined}
         >
-          Suivant
+          {t.common.next}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -376,6 +384,7 @@ function LevelBar({ level, active }: { level: number; active: boolean }) {
 /* ─── Step 3: Model ─────────────────────────────────────── */
 
 function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const t = useT();
   const [model, setModel] = useState<ModelStatus | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
@@ -406,13 +415,11 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
       if (target) {
         setModel(target);
       } else {
-        setError(
-          `Modèle introuvable dans la liste (${list.length} entrées). Tu peux passer cette étape et le télécharger depuis l'onglet Modèles.`,
-        );
+        setError(t.onboarding.model.error.notFound(list.length));
       }
     } catch (err) {
       console.error("listModels failed:", err);
-      setError(`Impossible de récupérer la liste des modèles : ${err}`);
+      setError(t.onboarding.model.error.listFailed(String(err)));
     } finally {
       setListLoading(false);
     }
@@ -463,8 +470,8 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
       <div className="flex-1 space-y-10">
         <StepHeader
           icon={<Sparkles className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          title="Le modèle de transcription"
-          description="Whisper Small offre le meilleur compromis qualité / vitesse en français. Tu peux en essayer d'autres plus tard dans Modèles."
+          title={t.onboarding.model.title}
+          description={t.onboarding.model.description}
         />
 
         <div className="rounded-xl border border-app bg-elevated p-5 space-y-4">
@@ -478,10 +485,10 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
               </div>
               <div className="text-[12px] text-muted tabular-nums">
                 {model
-                  ? `${model.sizeMb} MB · environ 1 minute à télécharger`
+                  ? t.onboarding.model.sizeAndEta(model.sizeMb)
                   : listLoading
-                  ? "Chargement…"
-                  : "Indisponible"}
+                  ? t.common.loading
+                  : t.onboarding.model.unavailable}
               </div>
             </div>
             <StateBadge model={model} loading={loading || downloading} />
@@ -497,9 +504,13 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
                 />
               </div>
               <div className="text-[10.5px] font-mono text-faint tabular-nums">
-                {(progress.bytes / (1024 * 1024)).toFixed(1)} /{" "}
-                {(progress.total / (1024 * 1024)).toFixed(1)} MB ·{" "}
-                {progress.percent.toFixed(0)}%
+                {t.units.megabytes(
+                  `${(progress.bytes / (1024 * 1024)).toFixed(1)} / ${(
+                    progress.total /
+                    (1024 * 1024)
+                  ).toFixed(1)}`,
+                )}{" "}
+                · {progress.percent.toFixed(0)}%
               </div>
             </div>
           )}
@@ -520,7 +531,9 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
                 ) : (
                   <Download className="h-3 w-3" strokeWidth={2.4} />
                 )}
-                {downloading ? "Téléchargement" : "Télécharger"}
+                {downloading
+                  ? t.settings.models.action.downloading
+                  : t.settings.models.action.download}
               </button>
             )}
             {model && model.downloaded && !model.loaded && (
@@ -530,13 +543,13 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12.5px] font-medium border border-app bg-elevated hover:bg-hover transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
               >
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                Charger
+                {t.settings.models.action.load}
               </button>
             )}
             {model && model.loaded && (
               <span className="inline-flex items-center gap-1.5 text-[12.5px] text-moss">
                 <Check className="h-3 w-3" strokeWidth={3} />
-                Prêt à dicter
+                {t.onboarding.model.ready}
               </span>
             )}
             {!model && !listLoading && (
@@ -544,7 +557,7 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
                 onClick={refresh}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12.5px] font-medium border border-app bg-elevated hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
               >
-                Réessayer
+                {t.common.retry}
               </button>
             )}
           </div>
@@ -564,9 +577,9 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
         </div>
 
         <p className="text-[11.5px] text-faint leading-relaxed">
-          Le fichier est stocké dans{" "}
-          <span className="font-mono">%APPDATA%\Hyperwisper\models\</span>. Tu
-          peux le supprimer à tout moment depuis l'onglet Modèles.
+          {t.onboarding.model.storageHintPrefix}{" "}
+          <span className="font-mono">%APPDATA%\Hyperwisper\models\</span>
+          {t.onboarding.model.storageHintSuffix}
         </p>
       </div>
 
@@ -578,15 +591,15 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
               onClick={onNext}
               className="text-[12px] text-muted hover:text-app transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))] rounded px-1"
             >
-              Je télécharge plus tard
+              {t.onboarding.model.skip}
             </button>
           )}
           <PrimaryButton
             onClick={onNext}
             disabled={!ready}
-            hint={!ready ? "Modèle non chargé" : undefined}
+            hint={!ready ? t.onboarding.model.nextHint : undefined}
           >
-            Suivant
+            {t.common.next}
             <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
           </PrimaryButton>
         </div>
@@ -602,6 +615,7 @@ function StateBadge({
   model: ModelStatus | null;
   loading: boolean;
 }) {
+  const t = useT();
   if (!model) return null;
   if (loading) {
     return (
@@ -613,20 +627,21 @@ function StateBadge({
   if (model.loaded) {
     return (
       <span className="inline-flex items-center gap-1 text-[10.5px] uppercase tracking-[0.1em] font-medium text-moss">
-        <Check className="h-3 w-3" strokeWidth={3} /> Actif
+        <Check className="h-3 w-3" strokeWidth={3} />{" "}
+        {t.onboarding.model.badge.active}
       </span>
     );
   }
   if (model.downloaded) {
     return (
       <span className="text-[10.5px] uppercase tracking-[0.1em] font-medium text-faint">
-        Téléchargé
+        {t.onboarding.model.badge.downloaded}
       </span>
     );
   }
   return (
     <span className="text-[10.5px] uppercase tracking-[0.1em] font-medium text-faint">
-      À télécharger
+      {t.onboarding.model.badge.toDownload}
     </span>
   );
 }
@@ -644,6 +659,7 @@ function HotkeyStep({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
 
   async function saveHotkey(combo: string) {
@@ -660,12 +676,12 @@ function HotkeyStep({
       <div className="flex-1 space-y-10">
         <StepHeader
           icon={<Kbd>⌨</Kbd>}
-          title="Comment déclencher la dictée ?"
-          description="Choisis ton raccourci global et le mode d'enregistrement. Tu pourras tout changer plus tard depuis Settings."
+          title={t.onboarding.hotkey.title}
+          description={t.onboarding.hotkey.description}
         />
 
         <div className="space-y-3">
-          <Label>Raccourci</Label>
+          <Label>{t.onboarding.hotkey.label}</Label>
           <HotkeyEditor current={settings.hotkey} onSave={saveHotkey} />
           {error && (
             <div
@@ -682,17 +698,17 @@ function HotkeyStep({
         </div>
 
         <div className="space-y-3">
-          <Label>Mode</Label>
+          <Label>{t.onboarding.hotkey.modeLabel}</Label>
           <div className="grid grid-cols-2 gap-2">
             <ModeCard
-              label="Toggle"
-              description="Une pression pour démarrer, une autre pour arrêter."
+              label={t.onboarding.hotkey.mode.toggleLabel}
+              description={t.onboarding.hotkey.mode.toggleDescription}
               active={settings.mode === "toggle"}
               onClick={() => onChange({ ...settings, mode: "toggle" })}
             />
             <ModeCard
-              label="Push-to-talk"
-              description="Maintiens la touche tant que tu parles."
+              label={t.onboarding.hotkey.mode.pttLabel}
+              description={t.onboarding.hotkey.mode.pttDescription}
               active={settings.mode === "pushtotalk"}
               onClick={() => onChange({ ...settings, mode: "pushtotalk" })}
             />
@@ -703,7 +719,7 @@ function HotkeyStep({
       <NavRow>
         <BackButton onClick={onBack} />
         <PrimaryButton onClick={onNext}>
-          Suivant
+          {t.common.next}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -758,41 +774,40 @@ function LaunchStep({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex-1 flex flex-col">
       <div className="flex-1 space-y-10">
         <StepHeader
           icon={<Power className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          title="Lancer au démarrage ?"
-          description="Hyperwisper vit dans la barre des tâches. Si tu le lances au démarrage de Windows, ton raccourci est prêt dès que tu ouvres ta session — sans rien à faire."
+          title={t.onboarding.launch.title}
+          description={t.onboarding.launch.description}
         />
 
         <div className="grid grid-cols-2 gap-2">
           <LaunchCard
-            label="Au démarrage"
-            description="Hyperwisper se lance automatiquement avec Windows. Recommandé."
+            label={t.onboarding.launch.autoLabel}
+            description={t.onboarding.launch.autoDescription}
             active={settings.autoLaunch}
             onClick={() => onChange({ ...settings, autoLaunch: true })}
           />
           <LaunchCard
-            label="Manuel"
-            description="Tu lances Hyperwisper toi-même quand tu en as besoin."
+            label={t.onboarding.launch.manualLabel}
+            description={t.onboarding.launch.manualDescription}
             active={!settings.autoLaunch}
             onClick={() => onChange({ ...settings, autoLaunch: false })}
           />
         </div>
 
         <p className="text-[11.5px] text-faint leading-relaxed">
-          Hyperwisper démarre discrètement en arrière-plan : pas de fenêtre,
-          seulement l'icône dans la barre des tâches. Tu peux changer d'avis à
-          tout moment depuis l'onglet Audio.
+          {t.onboarding.launch.hint}
         </p>
       </div>
 
       <NavRow>
         <BackButton onClick={onBack} />
         <PrimaryButton onClick={onNext}>
-          Suivant
+          {t.common.next}
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
         </PrimaryButton>
       </NavRow>
@@ -844,6 +859,7 @@ function DoneStep({
   hotkey: string;
   onFinish: () => void;
 }) {
+  const t = useT();
   const parts = useMemo(() => hotkey.split("+").map((p) => p.trim()), [hotkey]);
 
   return (
@@ -861,17 +877,16 @@ function DoneStep({
 
         <div className="space-y-3">
           <h1 className="text-[36px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            Tu es prêt.
+            {t.onboarding.done.title}
           </h1>
           <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            Hyperwisper écoute en arrière-plan. Maintiens ton raccourci dans
-            n'importe quelle app pour dicter.
+            {t.onboarding.done.body}
           </p>
         </div>
 
         <div className="rounded-lg border border-app bg-elevated p-5 space-y-3">
           <div className="text-[11px] uppercase tracking-[0.12em] font-medium text-faint">
-            Essaie maintenant
+            {t.onboarding.done.tryNowLabel}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             {parts.map((p, i, arr) => (
@@ -883,21 +898,20 @@ function DoneStep({
               </span>
             ))}
             <span className="ml-2 text-[12.5px] text-soft">
-              n'importe où dans Windows.
+              {t.onboarding.done.anywhereSuffix}
             </span>
           </div>
         </div>
 
         <p className="text-[11.5px] text-faint leading-relaxed max-w-[44ch]">
-          Hyperwisper se loge dans la barre de tâches. Clic sur l'icône pour
-          rouvrir les paramètres à tout moment.
+          {t.onboarding.done.trayHint}
         </p>
       </div>
 
       <NavRow>
         <span />
         <PrimaryButton onClick={onFinish}>
-          Terminer
+          {t.onboarding.done.cta}
           <Check className="h-3.5 w-3.5" strokeWidth={2.8} />
         </PrimaryButton>
       </NavRow>
@@ -916,12 +930,13 @@ function StepHeader({
   title: string;
   description: string;
 }) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sand">
         {icon}
         <span className="text-[11px] uppercase tracking-[0.12em] font-medium">
-          Étape
+          {t.onboarding.stepEyebrow}
         </span>
       </div>
       <h2 className="text-[26px] leading-[1.1] font-semibold tracking-[-0.025em] text-app">
@@ -951,13 +966,14 @@ function NavRow({ children }: { children: React.ReactNode }) {
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12.5px] text-muted hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
     >
       <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
-      Retour
+      {t.common.back}
     </button>
   );
 }

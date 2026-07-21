@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { events, type RecordingState } from "@/lib/events";
 import { sounds } from "@/lib/sounds";
 import { api, type OverlayStyle } from "@/lib/ipc";
+import { useT } from "@/i18n";
 
 const FAT_BAR_COUNT = 36;
 const THIN_BAR_COUNT = 7;
@@ -13,7 +14,7 @@ const BAR_HEIGHT_MIN = 4;
 const THIN_BAR_HEIGHT_MAX = 16;
 const THIN_BAR_HEIGHT_MIN = 2;
 
-// Spring used for the pill morphing between Recording / Transcribing / Collé.
+// Spring used for the pill morphing between recording / transcribing / done.
 // Tuned to feel "alive" without overshooting noticeably.
 const PILL_SPRING = { type: "spring" as const, stiffness: 280, damping: 28, mass: 0.7 };
 
@@ -183,6 +184,7 @@ function FatPill({
   elapsed: number;
   onMouseDown: (e: React.MouseEvent) => void;
 }) {
+  const t = useT();
   return (
     <motion.div
       key="pill-fat"
@@ -239,7 +241,7 @@ function FatPill({
               className="text-[12.5px] font-medium tracking-tight"
               style={{ color: "rgba(244, 241, 234, 0.92)" }}
             >
-              Transcription
+              {t.overlay.transcribing}
             </span>
             <TypingDots />
           </motion.div>
@@ -259,7 +261,7 @@ function FatPill({
               className="text-[12.5px] font-medium tracking-tight"
               style={{ color: "rgba(244, 241, 234, 0.92)" }}
             >
-              Collé
+              {t.overlay.done}
             </span>
           </motion.div>
         )}
@@ -402,6 +404,7 @@ function RecordingDot({ small }: { small?: boolean }) {
 }
 
 function CancelButton() {
+  const t = useT();
   return (
     <button
       onMouseDown={(e) => e.stopPropagation()}
@@ -414,8 +417,8 @@ function CancelButton() {
         background: "rgba(255, 245, 230, 0.06)",
         color: "rgba(244, 241, 234, 0.55)",
       }}
-      title="Annuler (Esc)"
-      aria-label="Annuler la dictée"
+      title={t.overlay.cancelTitle}
+      aria-label={t.overlay.cancelAriaLabel}
     >
       <X className="h-2.5 w-2.5" strokeWidth={3} />
     </button>

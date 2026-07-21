@@ -5,14 +5,21 @@ import { invoke } from "@tauri-apps/api/core";
 import { Logo } from "@/components/Logo";
 import { api, type HistoryEntry } from "@/lib/ipc";
 import { events } from "@/lib/events";
+import { formatRelativeTime } from "@/lib/datetime";
+import { useI18n, type Dictionary } from "@/i18n";
 import { SectionLabel, Kbd } from "./common";
 
 type StatusLevel = "ok" | "warn" | "error";
 
+/**
+ * One row as Rust sends it. The backend emits no prose — `kind` is a stable
+ * id, `detail` carries the untranslatable data (device name, model name,
+ * hotkey combo) that gets interpolated into the localised string.
+ */
 interface StatusItem {
   level: StatusLevel;
-  label: string;
-  value: string;
+  kind: string;
+  detail?: string;
   linkTo?: string;
 }
 
@@ -24,12 +31,21 @@ interface SystemStatus {
   privacy: StatusItem;
 }
 
+/** A row once the dictionary has turned `kind` + `detail` into text. */
+interface StatusRowView {
+  level: StatusLevel;
+  label: string;
+  value: string;
+  linkTo?: string;
+}
+
 interface GeneralPanelProps {
   modelLoaded: boolean;
   onNavigate: (panelId: string) => void;
 }
 
 export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
+  const { t, intlLocale } = useI18n();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
@@ -41,8 +57,8 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
     events.onHistoryNew(() => api.getHistory().then(setHistory)).then((u) => unsubs.push(u));
     // The model load happens asynchronously after app start — refresh the
     // status panel as soon as Rust signals the model is ready so the GPU
-    // acceleration line flips from "loading" to "GPU actif" without a manual
-    // tab swap.
+    // acceleration line flips from "loading" to the active-GPU string without
+    // a manual tab swap.
     events.onModelLoaded(() => refresh()).then((u) => unsubs.push(u));
     return () => unsubs.forEach((u) => u());
   }, [modelLoaded]);
@@ -56,12 +72,10 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
     }
   }
 
-  const items = status
-    ? [status.whisper, status.microphone, status.hotkey, status.acceleration, status.privacy]
-    : [];
+  const items = status ? describeStatus(status, t) : [];
 
   const worst = worstLevel(items);
-  const hero = heroPhrase(worst, status);
+  const hero = heroPhrase(worst, status, t);
 
   // Stats this session — last 24h
   const last24h = Date.now() - 86_400_000;
@@ -91,11 +105,11 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
         </div>
 
         <div className="flex items-center gap-2 text-[12.5px] text-muted">
-          <span>Maintiens</span>
+          <span>{t.settings.general.holdHintPrefix}</span>
           <Kbd>Ctrl</Kbd>
           <span className="text-faint">+</span>
           <Kbd>Space</Kbd>
-          <span>n'importe où dans Windows</span>
+          <span>{t.settings.general.holdHintSuffix}</span>
         </div>
       </motion.section>
 
@@ -106,22 +120,22 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
         transition={{ duration: 0.4, delay: 0.1 }}
         className="space-y-3"
       >
-        <SectionLabel>Aujourd'hui</SectionLabel>
+        <SectionLabel>{t.settings.general.todayLabel}</SectionLabel>
         <div className="grid grid-cols-3 gap-2">
           <StatCard
             icon={<Mic className="h-3 w-3" strokeWidth={2.4} />}
-            label="Dictées"
+            label={t.settings.general.stat.dictations}
             value={dictationsToday.toString()}
           />
           <StatCard
             icon={<FileText className="h-3 w-3" strokeWidth={2.4} />}
-            label="Mots"
-            value={wordsToday.toLocaleString("fr-FR")}
+            label={t.settings.general.stat.words}
+            value={wordsToday.toLocaleString(intlLocale)}
           />
           <StatCard
             icon={<Clock className="h-3 w-3" strokeWidth={2.4} />}
-            label="Audio"
-            value={formatAudio(audioToday)}
+            label={t.settings.general.stat.audio}
+            value={formatAudio(audioToday, t)}
           />
         </div>
       </motion.section>
@@ -133,7 +147,7 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
         transition={{ duration: 0.4, delay: 0.18 }}
         className="space-y-3"
       >
-        <SectionLabel>Système</SectionLabel>
+        <SectionLabel>{t.settings.general.systemLabel}</SectionLabel>
 
         <div className="-mx-3">
           {items.length === 0
@@ -163,12 +177,12 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
           className="space-y-3"
         >
           <div className="flex items-center justify-between">
-            <SectionLabel>Dernières dictées</SectionLabel>
+            <SectionLabel>{t.settings.general.recentTitle}</SectionLabel>
             <button
               onClick={() => onNavigate("history")}
               className="text-[11.5px] text-muted hover:text-app transition-colors inline-flex items-center gap-1"
             >
-              Voir tout
+              {t.settings.general.seeAll}
               <ChevronRight className="h-3 w-3" strokeWidth={2.2} />
             </button>
           </div>
@@ -183,7 +197,8 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
                   {entry.text}
                 </p>
                 <div className="mt-0.5 text-[10.5px] font-mono text-faint tabular-nums">
-                  {formatRelativeTime(entry.timestamp)} · {entry.wordCount} mots
+                  {formatRelativeTime(entry.timestamp, t, intlLocale)} ·{" "}
+                  {t.settings.general.wordCount(entry.wordCount)}
                 </div>
               </div>
             ))}
@@ -218,7 +233,7 @@ function StatCard({
   );
 }
 
-function StatusRow({ item, onClick }: { item: StatusItem; onClick?: () => void }) {
+function StatusRow({ item, onClick }: { item: StatusRowView; onClick?: () => void }) {
   const interactive = !!onClick;
   return (
     <button
@@ -265,7 +280,65 @@ function StatusIcon({ level }: { level: StatusLevel }) {
   );
 }
 
-function worstLevel(items: StatusItem[]): StatusLevel {
+/**
+ * Turn the raw payload into displayable rows. Every `kind` the backend can
+ * emit is handled; anything unexpected degrades to the raw detail rather
+ * than blowing up the panel.
+ */
+function describeStatus(status: SystemStatus, t: Dictionary): StatusRowView[] {
+  const s = t.systemStatus;
+  const detail = (it: StatusItem) => it.detail ?? "";
+
+  const whisper: StatusRowView = {
+    level: status.whisper.level,
+    label: s.whisper.label,
+    value:
+      status.whisper.kind === "loaded"
+        ? s.whisper.loaded(detail(status.whisper))
+        : s.whisper.missing,
+    linkTo: status.whisper.linkTo,
+  };
+
+  const microphone: StatusRowView = {
+    level: status.microphone.level,
+    label: s.microphone.label,
+    value:
+      status.microphone.kind === "ok"
+        ? s.microphone.ok(detail(status.microphone))
+        : s.microphone.missing,
+    linkTo: status.microphone.linkTo,
+  };
+
+  const hotkey: StatusRowView = {
+    level: status.hotkey.level,
+    label: s.hotkey.label,
+    value: s.hotkey.ok(detail(status.hotkey)),
+    linkTo: status.hotkey.linkTo,
+  };
+
+  const acceleration: StatusRowView = {
+    level: status.acceleration.level,
+    label: s.acceleration.label,
+    value:
+      status.acceleration.kind === "gpu"
+        ? s.acceleration.gpu(detail(status.acceleration))
+        : status.acceleration.kind === "cpuWithGpu"
+        ? s.acceleration.cpuWithGpu(detail(status.acceleration))
+        : s.acceleration.cpu,
+    linkTo: status.acceleration.linkTo,
+  };
+
+  const privacy: StatusRowView = {
+    level: status.privacy.level,
+    label: s.privacy.label,
+    value: s.privacy.ok,
+    linkTo: status.privacy.linkTo,
+  };
+
+  return [whisper, microphone, hotkey, acceleration, privacy];
+}
+
+function worstLevel(items: StatusRowView[]): StatusLevel {
   if (items.some((i) => i.level === "error")) return "error";
   if (items.some((i) => i.level === "warn")) return "warn";
   return "ok";
@@ -273,51 +346,25 @@ function worstLevel(items: StatusItem[]): StatusLevel {
 
 function heroPhrase(
   worst: StatusLevel,
-  status: SystemStatus | null
+  status: SystemStatus | null,
+  t: Dictionary
 ): { title: string; subtitle: string } {
-  if (!status) {
-    return {
-      title: "Initialisation…",
-      subtitle: "Vérification du système en cours.",
-    };
-  }
+  const hero = t.settings.general.hero;
+  if (!status) return hero.loading;
   if (worst === "error") {
-    if (status.whisper.level === "error") {
-      return {
-        title: "Un modèle à télécharger.",
-        subtitle:
-          "Aucun modèle Whisper n'est encore chargé. Va dans Modèles pour en récupérer un.",
-      };
-    }
-    if (status.microphone.level === "error") {
-      return {
-        title: "Microphone introuvable.",
-        subtitle:
-          "Aucun périphérique d'entrée audio n'est détecté. Branche un micro ou vérifie tes paramètres Windows.",
-      };
-    }
-    return {
-      title: "Setup à finaliser.",
-      subtitle: "Quelques vérifications à régler avant de pouvoir dicter.",
-    };
+    if (status.whisper.level === "error") return hero.noModel;
+    if (status.microphone.level === "error") return hero.noMic;
+    return hero.setup;
   }
-  return {
-    title: "Tout est prêt.",
-    subtitle:
-      "Hyperwisper écoute en arrière-plan. Le texte est collé là où ton curseur se trouve, immédiatement.",
-  };
+  return hero.ready;
 }
 
-function formatAudio(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-  return `${(seconds / 3600).toFixed(1)}h`;
-}
-
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  if (diff < 60_000) return "à l'instant";
-  if (diff < 3_600_000) return `il y a ${Math.floor(diff / 60_000)} min`;
-  if (diff < 86_400_000) return `il y a ${Math.floor(diff / 3_600_000)}h`;
-  return new Date(timestamp).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+function formatAudio(seconds: number, t: Dictionary): string {
+  if (seconds < 60) return t.units.seconds(Math.round(seconds));
+  if (seconds < 3600)
+    return t.units.minutesSeconds(
+      Math.floor(seconds / 60),
+      Math.round(seconds % 60)
+    );
+  return t.units.hours(Number((seconds / 3600).toFixed(1)));
 }

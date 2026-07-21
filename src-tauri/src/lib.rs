@@ -201,6 +201,7 @@ pub fn run() {
             commands::load_model,
             commands::is_model_loaded,
             commands::get_system_status,
+            commands::set_tray_labels,
             commands::save_overlay_position,
             commands::list_input_devices,
             commands::test_microphone,

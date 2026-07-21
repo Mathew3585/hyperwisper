@@ -1,6 +1,7 @@
 import { Sun, Moon, Monitor, Minus, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Theme } from "@/lib/theme";
+import { useT } from "@/i18n";
 import { Logo } from "./Logo";
 
 interface TopbarProps {
@@ -9,10 +10,11 @@ interface TopbarProps {
 }
 
 export function Topbar({ theme, onThemeChange }: TopbarProps) {
+  const t = useT();
   return (
     <header
       data-tauri-drag-region
-      aria-label="Barre de titre"
+      aria-label={t.topbar.ariaLabel}
       className="h-11 flex-shrink-0 px-3 flex items-center justify-between border-b border-app bg-app select-none"
     >
       <div className="flex items-baseline gap-2.5 pl-1 pointer-events-none">
@@ -30,16 +32,17 @@ export function Topbar({ theme, onThemeChange }: TopbarProps) {
 }
 
 function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (t: Theme) => void }) {
+  const t = useT();
   const options = [
-    { value: "light" as const, icon: Sun, label: "Clair" },
-    { value: "dark" as const, icon: Moon, label: "Sombre" },
-    { value: "system" as const, icon: Monitor, label: "Système" },
+    { value: "light" as const, icon: Sun, label: t.topbar.theme.light },
+    { value: "dark" as const, icon: Moon, label: t.topbar.theme.dark },
+    { value: "system" as const, icon: Monitor, label: t.topbar.theme.system },
   ];
   return (
     <div
       data-tauri-drag-region="false"
       role="radiogroup"
-      aria-label="Thème"
+      aria-label={t.topbar.theme.groupAriaLabel}
       className="flex items-center gap-px rounded-md border border-app p-0.5 bg-elevated"
     >
       {options.map(({ value, icon: Icon, label }) => {
@@ -67,16 +70,17 @@ function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (t: Theme) =
 }
 
 function WindowControls() {
+  const t = useT();
   const win = getCurrentWindow();
   return (
     <div data-tauri-drag-region="false" className="flex items-center gap-px ml-1">
-      <WindowButton onClick={() => win.minimize()} label="Réduire">
+      <WindowButton onClick={() => win.minimize()} label={t.window.minimize}>
         <Minus className="h-3 w-3" strokeWidth={2.2} />
       </WindowButton>
-      <WindowButton onClick={() => win.toggleMaximize()} label="Agrandir">
+      <WindowButton onClick={() => win.toggleMaximize()} label={t.window.maximize}>
         <Square className="h-2.5 w-2.5" strokeWidth={2.5} />
       </WindowButton>
-      <WindowButton onClick={() => win.hide()} label="Fermer" danger>
+      <WindowButton onClick={() => win.hide()} label={t.window.close} danger>
         <X className="h-3 w-3" strokeWidth={2.4} />
       </WindowButton>
     </div>
