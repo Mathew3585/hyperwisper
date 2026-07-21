@@ -19,9 +19,23 @@ const MIN_DURATION_MS: u64 = 250;
 /// average below the threshold and triggering a false "no voice" — only
 /// the loud frames count toward the budget.
 const VAD_FRAME_MS: u32 = 20;
-/// RMS a 20 ms frame must reach to count as speech. Background hiss is
-/// typically <0.005; ambient fan/keyboard <0.02; even soft speech ≥ 0.03.
-const VAD_FRAME_RMS_THRESHOLD: f32 = 0.025;
+/// How far above the recording's own noise floor a frame must sit to count
+/// as speech.
+///
+/// This used to be an absolute RMS threshold (0.025), which tied the gate to
+/// the output level of whatever interface was selected. A Focusrite line
+/// input and a hot USB mic differ by more than an order of magnitude, so the
+/// quiet one had *every* frame rejected — `0 ms of speech` on 20 s of
+/// perfectly good audio, silently discarded. Measuring against the noise
+/// floor makes the gate care about the shape of the signal instead of its
+/// absolute level, which is the thing that actually distinguishes speech.
+const VAD_NOISE_MULTIPLIER: f32 = 3.0;
+/// Fraction of frames (quietest first) taken to represent the noise floor.
+const VAD_NOISE_PERCENTILE: f32 = 0.10;
+/// Hard floor, far below any real microphone's speech level. Its only job is
+/// to stop a digitally-silent recording — where the noise floor is ~0, so
+/// any multiple of it is also ~0 — from counting dither as speech.
+const VAD_ABS_MIN_RMS: f32 = 0.002;
 /// Minimum total speech budget across the recording. One spoken syllable is
 /// roughly 200 ms, so 150 ms is permissive — short transients like a door
 /// slam or mouse click (5–40 ms) can't accumulate that much.
@@ -157,12 +171,17 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
     // carry speech-level energy. Silences between phrases contribute zero —
     // they neither help nor hurt the budget — so long pauses don't get
     // mistaken for "no voice".
-    let speech_ms = speech_budget_ms(&samples, sample_rate);
+    let va = analyze_voice_activity(&samples, sample_rate);
     tracing::info!(
-        "Voice activity check: {} ms of speech detected (threshold ≥{} ms)",
-        speech_ms,
-        VAD_MIN_SPEECH_MS
+        "Voice activity check: {} ms of speech (need ≥{} ms) — \
+         noise_floor={:.5} threshold={:.5} peak={:.5}",
+        va.speech_ms,
+        VAD_MIN_SPEECH_MS,
+        va.noise_floor,
+        va.threshold,
+        va.peak
     );
+    let speech_ms = va.speech_ms;
     if speech_ms < VAD_MIN_SPEECH_MS {
         tracing::info!("Skipping transcription (no voice detected)");
         let _ = app.emit("recording:no-voice", ());
@@ -260,33 +279,74 @@ async fn paste_and_finish(app: &AppHandle, text: String) {
     finish(app).await;
 }
 
-/// Sum, in milliseconds, the duration of frames whose RMS exceeds the
-/// speech threshold. Silent frames contribute zero — which is exactly what
-/// we want when the user pauses between phrases.
-fn speech_budget_ms(samples: &[f32], sample_rate: u32) -> u32 {
+/// What the voice-activity pass concluded about a recording. The extra
+/// fields beyond `speech_ms` exist so the log line can explain *why* a
+/// recording was rejected — diagnosing the Focusrite case from `0 ms of
+/// speech` alone cost far more time than carrying three floats around.
+struct VoiceActivity {
+    speech_ms: u32,
+    noise_floor: f32,
+    threshold: f32,
+    peak: f32,
+}
+
+/// Sum, in milliseconds, the duration of frames loud enough to be speech
+/// relative to this recording's own noise floor. Silent frames contribute
+/// zero — which is exactly what we want when the user pauses between
+/// phrases.
+fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
+    let empty = VoiceActivity {
+        speech_ms: 0,
+        noise_floor: 0.0,
+        threshold: 0.0,
+        peak: 0.0,
+    };
+
     if samples.is_empty() || sample_rate == 0 {
-        return 0;
+        return empty;
     }
     let frame_samples = ((sample_rate as u64 * VAD_FRAME_MS as u64) / 1000) as usize;
     if frame_samples == 0 {
-        return 0;
+        return empty;
     }
 
-    let mut speech_frames: u32 = 0;
-    let thresh_sq = (VAD_FRAME_RMS_THRESHOLD * VAD_FRAME_RMS_THRESHOLD) as f64;
+    let mut frame_rms: Vec<f32> = samples
+        .chunks(frame_samples)
+        .filter(|f| !f.is_empty())
+        .map(|frame| {
+            let sum_sq: f64 = frame.iter().map(|&s| (s as f64) * (s as f64)).sum();
+            (sum_sq / frame.len() as f64).sqrt() as f32
+        })
+        .collect();
 
-    for frame in samples.chunks(frame_samples) {
-        if frame.is_empty() {
-            continue;
-        }
-        let sum_sq: f64 = frame.iter().map(|&s| (s as f64) * (s as f64)).sum();
-        let mean_sq = sum_sq / frame.len() as f64;
-        if mean_sq >= thresh_sq {
-            speech_frames += 1;
-        }
+    if frame_rms.is_empty() {
+        return empty;
     }
 
-    speech_frames * VAD_FRAME_MS
+    let peak = frame_rms.iter().copied().fold(0.0f32, f32::max);
+
+    // Noise floor = the quietest decile. Sorting a copy is fine: even a
+    // 5-minute dictation is only ~15k frames.
+    let mut sorted = frame_rms.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let idx = ((sorted.len() as f32 * VAD_NOISE_PERCENTILE) as usize).min(sorted.len() - 1);
+    let noise_floor = sorted[idx];
+
+    // No upper clamp on the threshold, deliberately. In a recording that is
+    // pure room tone the noise floor sits right at the peak, so 3x it lands
+    // above every frame and we correctly report no speech. Capping the
+    // threshold to some fraction of the peak would break exactly that case.
+    let threshold = (noise_floor * VAD_NOISE_MULTIPLIER).max(VAD_ABS_MIN_RMS);
+
+    frame_rms.retain(|&rms| rms >= threshold);
+    let speech_frames = frame_rms.len() as u32;
+
+    VoiceActivity {
+        speech_ms: speech_frames * VAD_FRAME_MS,
+        noise_floor,
+        threshold,
+        peak,
+    }
 }
 
 async fn finish(app: &AppHandle) {
@@ -310,4 +370,98 @@ async fn finish_silently(app: &AppHandle) {
         let _ = overlay.hide();
     }
     let _ = app.emit("recording:state", "idle");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SR: u32 = 48_000;
+
+    /// Build a recording from (duration_ms, rms_amplitude) segments. Uses an
+    /// alternating +/- signal so each frame's RMS equals the amplitude exactly.
+    fn signal(segments: &[(u32, f32)]) -> Vec<f32> {
+        let mut out = Vec::new();
+        for &(ms, amp) in segments {
+            let n = (SR as u64 * ms as u64 / 1000) as usize;
+            for i in 0..n {
+                out.push(if i % 2 == 0 { amp } else { -amp });
+            }
+        }
+        out
+    }
+
+    /// The Focusrite regression: real speech at a low absolute level, which
+    /// the old fixed 0.025 threshold rejected wholesale.
+    #[test]
+    fn quiet_interface_speech_is_detected() {
+        let samples = signal(&[(500, 0.0004), (1000, 0.012), (500, 0.0004)]);
+        let va = analyze_voice_activity(&samples, SR);
+        assert!(
+            va.speech_ms >= VAD_MIN_SPEECH_MS,
+            "quiet-but-real speech rejected: {} ms (threshold {:.5})",
+            va.speech_ms,
+            va.threshold
+        );
+    }
+
+    /// The same shape at a hot USB-mic level must still work — the fix must
+    /// not trade one interface for another.
+    #[test]
+    fn loud_mic_speech_is_detected() {
+        let samples = signal(&[(500, 0.004), (1000, 0.15), (500, 0.004)]);
+        let va = analyze_voice_activity(&samples, SR);
+        assert!(va.speech_ms >= VAD_MIN_SPEECH_MS, "{} ms", va.speech_ms);
+    }
+
+    /// A dead input must stay rejected: this is the case the absolute floor
+    /// exists for, since 3x a noise floor of zero is still zero.
+    #[test]
+    fn digital_silence_is_rejected() {
+        let samples = vec![0.0f32; SR as usize * 2];
+        assert_eq!(analyze_voice_activity(&samples, SR).speech_ms, 0);
+    }
+
+    /// Steady room tone with no speech: flat signal means the noise floor
+    /// sits at the peak, so the multiplier lands above every frame.
+    #[test]
+    fn steady_room_tone_is_rejected() {
+        let samples = signal(&[(3000, 0.006)]);
+        let va = analyze_voice_activity(&samples, SR);
+        assert_eq!(
+            va.speech_ms, 0,
+            "room tone counted as speech (threshold {:.5}, peak {:.5})",
+            va.threshold, va.peak
+        );
+    }
+
+    /// Speech over a noisy room: the floor rises, and the gate must rise
+    /// with it rather than counting the noise.
+    #[test]
+    fn speech_over_noisy_room_counts_only_the_speech() {
+        let samples = signal(&[(1000, 0.005), (400, 0.08), (1000, 0.005)]);
+        let va = analyze_voice_activity(&samples, SR);
+        assert!(va.speech_ms >= VAD_MIN_SPEECH_MS, "{} ms", va.speech_ms);
+        // Only the loud stretch should count, not the 2 s of room tone.
+        assert!(
+            va.speech_ms <= 500,
+            "noise counted as speech: {} ms",
+            va.speech_ms
+        );
+    }
+
+    /// Long pauses between phrases must not drag the whole thing below the
+    /// bar — the original reason this is per-frame rather than whole-buffer.
+    #[test]
+    fn pauses_between_phrases_do_not_suppress_detection() {
+        let samples = signal(&[(300, 0.001), (2000, 0.001), (300, 0.02), (2000, 0.001)]);
+        let va = analyze_voice_activity(&samples, SR);
+        assert!(va.speech_ms >= VAD_MIN_SPEECH_MS, "{} ms", va.speech_ms);
+    }
+
+    #[test]
+    fn degenerate_inputs_do_not_panic() {
+        assert_eq!(analyze_voice_activity(&[], SR).speech_ms, 0);
+        assert_eq!(analyze_voice_activity(&[0.1, -0.1], 0).speech_ms, 0);
+    }
 }

@@ -345,6 +345,7 @@ async fn preload_default_model(app: tauri::AppHandle) {
             *state.whisper.write() = Some(engine);
             let _ = app.emit("model:loaded", model);
             tracing::info!("Default model preloaded successfully");
+            warm_up_in_background(app.clone());
         }
         Ok(Err(e)) => {
             tracing::error!("Failed to load default model: {}", e);
@@ -352,4 +353,17 @@ async fn preload_default_model(app: tauri::AppHandle) {
         }
         Err(e) => tracing::error!("Join error preloading model: {}", e),
     }
+}
+
+/// Kick the loaded engine's warm-up off the main thread. The engine is
+/// already published at this point, so a dictation started meanwhile just
+/// queues behind the warm-up on the state mutex rather than failing.
+pub(crate) fn warm_up_in_background(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let guard = state.whisper.read();
+        if let Some(engine) = guard.as_ref() {
+            engine.warm_up();
+        }
+    });
 }

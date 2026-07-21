@@ -258,6 +258,7 @@ pub async fn load_model(model: Model, app: AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     *state.whisper.write() = Some(engine);
     let _ = tauri::Emitter::emit(&app, "model:loaded", model);
+    crate::warm_up_in_background(app.clone());
     Ok(())
 }
 
