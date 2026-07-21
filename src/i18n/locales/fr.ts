@@ -35,10 +35,9 @@ export const fr: Dictionary = {
   },
 
   nav: {
-    general: "Général",
+    home: "Accueil",
     models: "Modèles",
-    audio: "Audio",
-    shortcuts: "Raccourcis",
+    settings: "Réglages",
     history: "Historique",
     about: "À propos",
   },
@@ -144,11 +143,22 @@ export const fr: Dictionary = {
   },
 
   settings: {
+    panel: {
+      title: "Réglages",
+      description: "Tout ce que tu peux configurer, au même endroit.",
+    },
+
     general: {
       holdHintPrefix: "Maintiens",
       holdHintSuffix: "n'importe où dans Windows",
       todayLabel: "Aujourd'hui",
       stat: { dictations: "Dictées", words: "Mots", audio: "Audio" },
+      totalsLabel: "Depuis le début",
+      totalStat: {
+        dictations: "Dictées",
+        words: "Mots transcrits",
+        audio: "Audio capturé",
+      },
       systemLabel: "Système",
       recentTitle: "Dernières dictées",
       seeAll: "Voir tout",
@@ -245,6 +255,12 @@ export const fr: Dictionary = {
         description:
           "Restaure ce que tu avais copié avant la dictée, ~250 ms après le collage.",
       },
+      gameModeTitle: "Jeux",
+      gameMode: {
+        label: "Mettre en pause pendant le jeu",
+        description:
+          "Libère le raccourci quand un jeu ou une application plein écran est à l'écran, pour que la touche aille au jeu au lieu de lancer une dictée. Rétabli automatiquement quand tu en sors.",
+      },
       startupTitle: "Démarrage",
       autoLaunch: {
         label: "Lancer au démarrage de Windows",
@@ -258,7 +274,7 @@ export const fr: Dictionary = {
       description:
         "La langue de l'interface et celle dans laquelle tu dictes sont indépendantes — tu peux utiliser l'app en français et dicter dans n'importe quelle langue que Whisper gère.",
       uiLabel: "Langue de l'interface",
-      uiHint: "Détectée depuis Windows au premier lancement.",
+      uiHint: "S'applique immédiatement, dans toutes les fenêtres.",
       transcriptionLabel: "Langue de dictée",
       transcriptionHint:
         "Règle-la sur la langue que tu parles réellement. La détection automatique fonctionne bien, mais nommer la langue explicitement est plus précis sur les dictées courtes.",
@@ -293,8 +309,6 @@ export const fr: Dictionary = {
         description:
           "— maintiens la touche tant que tu parles, relâche pour stopper. Idéal pour les phrases courtes.",
       },
-      changeModeHintPrefix: "Pour changer de mode, va dans l'onglet",
-      changeModeHintSuffix: ".",
       editor: {
         capturing: "Appuie sur ta combinaison…",
         escHintSuffix: "pour annuler",
@@ -321,31 +335,6 @@ export const fr: Dictionary = {
         descriptionSuffix:
           "n'importe où dans Windows et parle. Tes dictées apparaîtront ici.",
       },
-    },
-
-    account: {
-      title: "Compte",
-      description: "Ton activité et ton setup.",
-      heroTitle: "Tout est inclus.",
-      heroBody:
-        "Hyperwisper est gratuit et open-source. Aucune fonctionnalité n'est verrouillée, aucun abonnement.",
-      included: [
-        "Dictée illimitée, sans abonnement",
-        "Tous les modèles Whisper accessibles",
-        "Transcription 100% locale (offline)",
-        "Auto-paste là où ton curseur est",
-        "Historique complet, recherche, export",
-        "Accélération GPU (Vulkan) embarquée",
-      ],
-      totalsLabel: "Activité totale",
-      stat: {
-        dictations: "Dictées",
-        words: "Mots transcrits",
-        audio: "Audio capturé",
-      },
-      setupLabel: "Setup actuel",
-      rowActiveModel: "Modèle actif",
-      rowVersion: "Version",
     },
 
     about: {
@@ -393,6 +382,12 @@ export const fr: Dictionary = {
 
   onboarding: {
     stepEyebrow: "Étape",
+    language: {
+      title: "Choisis ta langue",
+      description:
+        "Choisis la langue dans laquelle tu veux utiliser Hyperwisper. Tu pourras la changer à tout moment depuis les réglages.",
+      cta: "Continuer",
+    },
     welcome: {
       title: "Bienvenue dans Hyperwisper.",
       body:
@@ -451,7 +446,7 @@ export const fr: Dictionary = {
     hotkey: {
       title: "Comment déclencher la dictée ?",
       description:
-        "Choisis ton raccourci global et le mode d'enregistrement. Tu pourras tout changer plus tard depuis Settings.",
+        "Choisis ton raccourci global et le mode d'enregistrement. Tu pourras tout changer plus tard depuis les réglages.",
       label: "Raccourci",
       modeLabel: "Mode",
       mode: {

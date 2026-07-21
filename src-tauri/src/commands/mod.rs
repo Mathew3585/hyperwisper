@@ -343,7 +343,7 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
             level: StatusLevel::Error,
             kind: "missing".into(),
             detail: None,
-            link_to: Some("audio".into()),
+            link_to: Some("settings".into()),
         },
     };
 

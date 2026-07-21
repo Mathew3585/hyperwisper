@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Mic, Check, Loader2 } from "lucide-react";
+import { Mic, Check, Loader2, AlertTriangle } from "lucide-react";
 import {
   api,
   type AppSettings,
@@ -10,13 +10,20 @@ import {
 import { PanelHeader, SectionLabel } from "./common";
 import { Toggle } from "./toggle";
 import { LanguageSection } from "./LanguageSection";
+import { HotkeyEditor, KeyChip } from "./HotkeyEditor";
 import { useT } from "@/i18n";
 
-export function AudioPanel() {
+/**
+ * Every preference, on one screen. Audio and Shortcuts used to be separate
+ * nav entries, which forced the shortcut and the mode it runs in — the same
+ * question, really — onto two different pages.
+ */
+export function SettingsPanel() {
   const t = useT();
   const [devices, setDevices] = useState<string[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hotkeyError, setHotkeyError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api.listInputDevices(), api.getSettings()]).then(([list, s]) => {
@@ -39,10 +46,25 @@ export function AudioPanel() {
     }
   }
 
+  // The hotkey saves on its own path: a rejected combo (already captured by
+  // another app) must surface inline rather than be swallowed like the
+  // toggles above, so the user knows the change did not take.
+  async function saveHotkey(newHotkey: string) {
+    if (!settings) return;
+    setHotkeyError(null);
+    try {
+      const next = { ...settings, hotkey: newHotkey };
+      await api.updateSettings(next);
+      setSettings(next);
+    } catch (err) {
+      setHotkeyError(String(err));
+    }
+  }
+
   if (!settings) {
     return (
       <div className="space-y-8">
-        <PanelHeader title={t.settings.audio.title} description={t.common.loading} />
+        <PanelHeader title={t.settings.panel.title} description={t.common.loading} />
       </div>
     );
   }
@@ -50,20 +72,73 @@ export function AudioPanel() {
   return (
     <div className="space-y-10">
       <PanelHeader
-        title={t.settings.audio.title}
-        description={t.settings.audio.description}
+        title={t.settings.panel.title}
+        description={t.settings.panel.description}
       />
 
-      {/* Microphone */}
+      {/* Language — first, because it is the one setting that makes every
+          other screen readable. */}
+      <LanguageSection />
+
+      {/* Shortcut */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <SectionLabel>{t.settings.audio.microphoneTitle}</SectionLabel>
+          <SectionLabel>{t.settings.shortcuts.mainLabel}</SectionLabel>
           {saving && (
             <span className="text-[10.5px] text-faint inline-flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> {t.common.saving}
             </span>
           )}
         </div>
+        <HotkeyEditor
+          current={settings.hotkey}
+          onSave={saveHotkey}
+          mode={settings.mode}
+        />
+        {hotkeyError && (
+          <div
+            className="rounded-md border px-3 py-2 text-[12px] flex items-start gap-2"
+            style={{
+              background: "hsl(var(--ember) / 0.08)",
+              borderColor: "hsl(var(--ember) / 0.3)",
+              color: "hsl(var(--ember))",
+            }}
+          >
+            <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" strokeWidth={2.4} />
+            <span>{hotkeyError}</span>
+          </div>
+        )}
+
+        {/* The mode selector belongs right under the shortcut: "which key"
+            and "held or pressed" are the same decision. */}
+        <div className="grid grid-cols-2 gap-2">
+          <ModeCard
+            label={t.settings.audio.mode.toggleLabel}
+            description={t.settings.audio.mode.toggleDescription}
+            active={settings.mode === "toggle"}
+            onClick={() => updateSetting("mode", "toggle" as RecordingMode)}
+          />
+          <ModeCard
+            label={t.settings.audio.mode.pttLabel}
+            description={t.settings.audio.mode.pttDescription}
+            active={settings.mode === "pushtotalk"}
+            onClick={() => updateSetting("mode", "pushtotalk" as RecordingMode)}
+          />
+        </div>
+
+        <p className="text-[11.5px] text-faint leading-relaxed">
+          {t.settings.shortcuts.imeTip.prefix}{" "}
+          <KeyChip>Ctrl + Space</KeyChip>{" "}
+          {t.settings.shortcuts.imeTip.middle}{" "}
+          <KeyChip>Ctrl + Shift + Space</KeyChip>{" "}
+          {t.settings.shortcuts.imeTip.or} <KeyChip>F8</KeyChip>{" "}
+          {t.settings.shortcuts.imeTip.suffix}
+        </p>
+      </section>
+
+      {/* Microphone */}
+      <section className="space-y-3">
+        <SectionLabel>{t.settings.audio.microphoneTitle}</SectionLabel>
         <div className="rounded-lg border border-app bg-elevated overflow-hidden">
           <MicRow
             label={t.settings.audio.defaultDevice.label}
@@ -89,25 +164,6 @@ export function AudioPanel() {
         <p className="text-[11.5px] text-faint">
           {t.settings.audio.fallbackHint}
         </p>
-      </section>
-
-      {/* Mode */}
-      <section className="space-y-3">
-        <SectionLabel>{t.settings.audio.modeTitle}</SectionLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <ModeCard
-            label={t.settings.audio.mode.toggleLabel}
-            description={t.settings.audio.mode.toggleDescription}
-            active={settings.mode === "toggle"}
-            onClick={() => updateSetting("mode", "toggle" as RecordingMode)}
-          />
-          <ModeCard
-            label={t.settings.audio.mode.pttLabel}
-            description={t.settings.audio.mode.pttDescription}
-            active={settings.mode === "pushtotalk"}
-            onClick={() => updateSetting("mode", "pushtotalk" as RecordingMode)}
-          />
-        </div>
       </section>
 
       {/* Overlay style */}
@@ -157,6 +213,19 @@ export function AudioPanel() {
         </div>
       </section>
 
+      {/* Games */}
+      <section className="space-y-3">
+        <SectionLabel>{t.settings.audio.gameModeTitle}</SectionLabel>
+        <div className="space-y-2">
+          <ToggleRow
+            checked={settings.gameMode}
+            onChange={(v) => updateSetting("gameMode", v)}
+            label={t.settings.audio.gameMode.label}
+            description={t.settings.audio.gameMode.description}
+          />
+        </div>
+      </section>
+
       {/* Startup */}
       <section className="space-y-3">
         <SectionLabel>{t.settings.audio.startupTitle}</SectionLabel>
@@ -169,11 +238,6 @@ export function AudioPanel() {
           />
         </div>
       </section>
-
-      {/* Interface language. It sits here rather than in its own panel
-          because this screen already holds the non-audio preferences
-          (Startup above), and one picker doesn't justify a nav entry. */}
-      <LanguageSection />
     </div>
   );
 }
@@ -354,5 +418,3 @@ function ToggleRow({
     </div>
   );
 }
-
-export { ShortcutsPanel } from "./ShortcutsPanel";

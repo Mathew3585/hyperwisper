@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles,
+  Home,
   Cpu,
-  Mic2,
-  Command,
+  SlidersHorizontal,
   History,
   Info,
 } from "lucide-react";
@@ -18,20 +17,12 @@ import { useT, type Dictionary } from "@/i18n";
 import { useTrayLabels } from "@/lib/useTrayLabels";
 import { GeneralPanel } from "./panels/GeneralPanel";
 import { ModelsPanel } from "./panels/ModelsPanel";
-import { AudioPanel, ShortcutsPanel } from "./panels/AudioPanel";
+import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
-import { AccountPanel } from "./panels/AccountPanel";
 import { AboutPanel } from "./panels/AboutPanel";
 import { OnboardingWizard } from "./onboarding/OnboardingWizard";
 
-type PanelId =
-  | "general"
-  | "models"
-  | "audio"
-  | "shortcuts"
-  | "history"
-  | "account"
-  | "about";
+type PanelId = "home" | "models" | "settings" | "history" | "about";
 
 /**
  * Built from the live dictionary rather than a module-level const: evaluated
@@ -40,10 +31,9 @@ type PanelId =
  */
 function buildNav(t: Dictionary): NavItem[] {
   return [
-    { id: "general", label: t.nav.general, icon: Sparkles },
+    { id: "home", label: t.nav.home, icon: Home },
     { id: "models", label: t.nav.models, icon: Cpu },
-    { id: "audio", label: t.nav.audio, icon: Mic2 },
-    { id: "shortcuts", label: t.nav.shortcuts, icon: Command },
+    { id: "settings", label: t.nav.settings, icon: SlidersHorizontal },
     { id: "history", label: t.nav.history, icon: History },
     { id: "about", label: t.nav.about, icon: Info },
   ];
@@ -52,7 +42,7 @@ function buildNav(t: Dictionary): NavItem[] {
 export function SettingsApp() {
   const t = useT();
   const nav = useMemo(() => buildNav(t), [t]);
-  const [panel, setPanel] = useState<PanelId>("general");
+  const [panel, setPanel] = useState<PanelId>("home");
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -177,7 +167,6 @@ export function SettingsApp() {
           items={nav}
           active={panel}
           onSelect={(id) => setPanel(id as PanelId)}
-          accountPanelId="account"
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -190,7 +179,7 @@ export function SettingsApp() {
                 exit={{ opacity: 0, y: -3 }}
                 transition={{ duration: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
               >
-                {panel === "general" && (
+                {panel === "home" && (
                   <GeneralPanel
                     modelLoaded={modelLoaded}
                     onNavigate={(id) => setPanel(id as PanelId)}
@@ -206,10 +195,8 @@ export function SettingsApp() {
                     error={loadError}
                   />
                 )}
-                {panel === "audio" && <AudioPanel />}
-                {panel === "shortcuts" && <ShortcutsPanel />}
+                {panel === "settings" && <SettingsPanel />}
                 {panel === "history" && <HistoryPanel />}
-                {panel === "account" && <AccountPanel models={models} />}
                 {panel === "about" && <AboutPanel />}
               </motion.div>
             </AnimatePresence>

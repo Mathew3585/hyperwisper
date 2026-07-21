@@ -1,110 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Command, AlertTriangle, X, Check } from "lucide-react";
-import { api, type AppSettings } from "@/lib/ipc";
+import { Command, X, Check } from "lucide-react";
+import { api } from "@/lib/ipc";
 import { useT } from "@/i18n";
-import { PanelHeader, SectionLabel } from "./common";
 
-export function ShortcutsPanel() {
-  const t = useT();
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getSettings().then(setSettings);
-  }, []);
-
-  async function saveHotkey(newHotkey: string) {
-    if (!settings) return;
-    setError(null);
-    try {
-      const next = { ...settings, hotkey: newHotkey };
-      await api.updateSettings(next);
-      setSettings(next);
-    } catch (err) {
-      setError(String(err));
-    }
-  }
-
-  if (!settings) {
-    return (
-      <div className="space-y-8">
-        <PanelHeader
-          title={t.settings.shortcuts.title}
-          description={t.common.loading}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-10">
-      <PanelHeader
-        title={t.settings.shortcuts.title}
-        description={t.settings.shortcuts.description}
-      />
-
-      <section className="space-y-3">
-        <SectionLabel>{t.settings.shortcuts.mainLabel}</SectionLabel>
-        <HotkeyEditor
-          current={settings.hotkey}
-          onSave={saveHotkey}
-          mode={settings.mode}
-        />
-        {error && (
-          <div
-            className="rounded-md border px-3 py-2 text-[12px] flex items-start gap-2"
-            style={{
-              background: "hsl(var(--ember) / 0.08)",
-              borderColor: "hsl(var(--ember) / 0.3)",
-              color: "hsl(var(--ember))",
-            }}
-          >
-            <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" strokeWidth={2.4} />
-            <span>{error}</span>
-          </div>
-        )}
-        <p className="text-[11.5px] text-faint leading-relaxed">
-          {t.settings.shortcuts.imeTip.prefix}{" "}
-          <KeyChip>Ctrl + Space</KeyChip>{" "}
-          {t.settings.shortcuts.imeTip.middle}{" "}
-          <KeyChip>Ctrl + Shift + Space</KeyChip>{" "}
-          {t.settings.shortcuts.imeTip.or} <KeyChip>F8</KeyChip>{" "}
-          {t.settings.shortcuts.imeTip.suffix}
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <SectionLabel>{t.settings.shortcuts.modeLabel}</SectionLabel>
-        <div className="rounded-lg border border-app bg-elevated px-4 py-3 text-[13px] text-soft leading-relaxed">
-          {settings.mode === "toggle" ? (
-            <>
-              <span className="font-medium text-app">
-                {t.settings.shortcuts.modeToggle.name}
-              </span>{" "}
-              {t.settings.shortcuts.modeToggle.description}
-            </>
-          ) : (
-            <>
-              <span className="font-medium text-app">
-                {t.settings.shortcuts.modePtt.name}
-              </span>{" "}
-              {t.settings.shortcuts.modePtt.description}
-            </>
-          )}
-        </div>
-        <p className="text-[11.5px] text-faint">
-          {t.settings.shortcuts.changeModeHintPrefix}{" "}
-          <span className="text-soft">{t.nav.audio}</span>{" "}
-          {t.settings.shortcuts.changeModeHintSuffix}
-        </p>
-      </section>
-    </div>
-  );
-}
-
-/* ──────────────────────────────────────────────────────────── */
-
+/**
+ * The capture widget for the global shortcut. It lives in its own module
+ * rather than inside a panel because two very different screens need it —
+ * the consolidated Settings panel and the onboarding wizard.
+ */
 export function HotkeyEditor({
   current,
   onSave,
@@ -266,7 +170,7 @@ export function HotkeyEditor({
   );
 }
 
-function KeyChip({ children }: { children: React.ReactNode }) {
+export function KeyChip({ children }: { children: React.ReactNode }) {
   return (
     <kbd className="inline-flex items-center justify-center min-w-[24px] h-[22px] px-1.5 text-[11px] font-mono font-medium rounded border border-app bg-subtle text-soft tracking-tight">
       {children}

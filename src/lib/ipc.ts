@@ -39,6 +39,11 @@ export interface AppSettings {
   overlayStyle: OverlayStyle;
   onboardingCompleted: boolean;
   autoLaunch: boolean;
+  /**
+   * Release the global hotkey while a game or other fullscreen app has the
+   * screen, so the keystroke reaches that app instead of starting a dictation.
+   */
+  gameMode: boolean;
 }
 
 interface ModelStatusRust {

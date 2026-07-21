@@ -32,10 +32,9 @@ export const de: Dictionary = {
   },
 
   nav: {
-    general: "Allgemein",
+    home: "Start",
     models: "Modelle",
-    audio: "Audio",
-    shortcuts: "Kürzel",
+    settings: "Einstellungen",
     history: "Verlauf",
     about: "Über",
   },
@@ -155,11 +154,22 @@ export const de: Dictionary = {
   },
 
   settings: {
+    panel: {
+      title: "Einstellungen",
+      description: "Alles, was du einstellen kannst, an einem Ort.",
+    },
+
     general: {
       holdHintPrefix: "Halte",
       holdHintSuffix: "gedrückt, überall in Windows",
       todayLabel: "Heute",
       stat: { dictations: "Diktate", words: "Wörter", audio: "Audio" },
+      totalsLabel: "Insgesamt",
+      totalStat: {
+        dictations: "Diktate",
+        words: "Transkribierte Wörter",
+        audio: "Aufgenommenes Audio",
+      },
       systemLabel: "System",
       recentTitle: "Letzte Diktate",
       seeAll: "Alle ansehen",
@@ -257,6 +267,12 @@ export const de: Dictionary = {
         description:
           "Stellt ~250 ms nach dem Einfügen wieder her, was du vor dem Diktat kopiert hattest.",
       },
+      gameModeTitle: "Spiele",
+      gameMode: {
+        label: "Beim Spielen pausieren",
+        description:
+          "Gibt das Kürzel frei, solange ein Spiel oder eine Vollbild-App im Vordergrund ist, damit die Taste im Spiel ankommt statt ein Diktat zu starten. Wird automatisch wiederhergestellt, sobald du das Spiel verlässt.",
+      },
       startupTitle: "Systemstart",
       autoLaunch: {
         label: "Mit Windows starten",
@@ -271,7 +287,7 @@ export const de: Dictionary = {
       description:
         "Die Sprache der Oberfläche und die Sprache, in der du diktierst, sind unabhängig voneinander — nutz die App auf Deutsch und diktier in jeder Sprache, die Whisper beherrscht.",
       uiLabel: "Sprache der Oberfläche",
-      uiHint: "Beim ersten Start aus Windows übernommen.",
+      uiHint: "Gilt sofort, in allen Fenstern.",
       transcriptionLabel: "Diktatsprache",
       transcriptionHint:
         "Stell hier die Sprache ein, die du tatsächlich sprichst. Die automatische Erkennung funktioniert gut, aber eine feste Sprache ist bei kurzen Diktaten genauer.",
@@ -306,8 +322,6 @@ export const de: Dictionary = {
         description:
           "— Taste halten, während du sprichst, loslassen zum Stoppen. Ideal für kurze Sätze.",
       },
-      changeModeHintPrefix: "Den Modus änderst du im Tab",
-      changeModeHintSuffix: ".",
       editor: {
         capturing: "Drück deine Kombination …",
         escHintSuffix: "zum Abbrechen",
@@ -335,31 +349,6 @@ export const de: Dictionary = {
         descriptionSuffix:
           "irgendwo in Windows und sprich. Deine Diktate erscheinen hier.",
       },
-    },
-
-    account: {
-      title: "Konto",
-      description: "Deine Aktivität und deine Einrichtung.",
-      heroTitle: "Alles ist dabei.",
-      heroBody:
-        "Hyperwisper ist kostenlos und quelloffen. Keine Funktion ist gesperrt, kein Abo.",
-      included: [
-        "Unbegrenzt diktieren, ohne Abo",
-        "Alle Whisper-Modelle verfügbar",
-        "100 % lokale Transkription (offline)",
-        "Automatisch einfügen, wo dein Cursor steht",
-        "Vollständiger Verlauf, Suche, Export",
-        "GPU-Beschleunigung (Vulkan) integriert",
-      ],
-      totalsLabel: "Aktivität insgesamt",
-      stat: {
-        dictations: "Diktate",
-        words: "Transkribierte Wörter",
-        audio: "Aufgenommenes Audio",
-      },
-      setupLabel: "Aktuelle Einrichtung",
-      rowActiveModel: "Aktives Modell",
-      rowVersion: "Version",
     },
 
     about: {
@@ -407,6 +396,12 @@ export const de: Dictionary = {
 
   onboarding: {
     stepEyebrow: "Schritt",
+    language: {
+      title: "Wähl deine Sprache",
+      description:
+        "Wähl die Sprache, in der du Hyperwisper nutzen möchtest. Du kannst sie jederzeit in den Einstellungen ändern.",
+      cta: "Fortfahren",
+    },
     welcome: {
       title: "Willkommen bei Hyperwisper.",
       body:

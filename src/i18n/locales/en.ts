@@ -40,10 +40,11 @@ export const en = {
   },
 
   nav: {
-    general: "General",
+    /** Status dashboard. It was called "General", which read as a settings
+        screen and pushed the real settings into Audio for want of a home. */
+    home: "Home",
     models: "Models",
-    audio: "Audio",
-    shortcuts: "Shortcuts",
+    settings: "Settings",
     history: "History",
     about: "About",
   },
@@ -166,11 +167,25 @@ export const en = {
   },
 
   settings: {
+    /** Header of the consolidated Settings screen. */
+    panel: {
+      title: "Settings",
+      description: "Everything you can configure, in one place.",
+    },
+
     general: {
       holdHintPrefix: "Hold",
       holdHintSuffix: "anywhere in Windows",
       todayLabel: "Today",
       stat: { dictations: "Dictations", words: "Words", audio: "Audio" },
+      /** All-time counters, moved here from the deleted Account panel —
+          they belong beside the daily ones, not on a screen of their own. */
+      totalsLabel: "All time",
+      totalStat: {
+        dictations: "Dictations",
+        words: "Words transcribed",
+        audio: "Audio captured",
+      },
       systemLabel: "System",
       recentTitle: "Recent dictations",
       seeAll: "See all",
@@ -267,6 +282,12 @@ export const en = {
         description:
           "Restores whatever you had copied before dictating, ~250 ms after the paste.",
       },
+      gameModeTitle: "Games",
+      gameMode: {
+        label: "Pause while gaming",
+        description:
+          "Releases the shortcut while a game or fullscreen app is on screen, so the key reaches the game instead of starting a dictation. Restored automatically when you leave.",
+      },
       startupTitle: "Startup",
       autoLaunch: {
         label: "Launch when Windows starts",
@@ -281,7 +302,7 @@ export const en = {
       description:
         "The interface language and the language you dictate in are separate — run the app in English and dictate in any language Whisper supports.",
       uiLabel: "Interface language",
-      uiHint: "Detected from Windows on first launch.",
+      uiHint: "Applies immediately, across every window.",
       transcriptionLabel: "Dictation language",
       transcriptionHint:
         "Set this to the language you actually speak. Auto-detect works well, but naming the language explicitly is more accurate on short dictations.",
@@ -316,8 +337,8 @@ export const en = {
         description:
           "— hold the key while you speak, release to stop. Best for short phrases.",
       },
-      changeModeHintPrefix: "To change mode, go to the",
-      changeModeHintSuffix: "tab.",
+      // "To change mode, go to the Audio tab" is gone: the mode selector now
+      // sits directly beneath the shortcut, which is where it always belonged.
       editor: {
         capturing: "Press your combination…",
         escHintSuffix: "to cancel",
@@ -348,30 +369,10 @@ export const en = {
       },
     },
 
-    account: {
-      title: "Account",
-      description: "Your activity and your setup.",
-      heroTitle: "Everything's included.",
-      heroBody:
-        "Hyperwisper is free and open source. No feature is locked, no subscription.",
-      included: [
-        "Unlimited dictation, no subscription",
-        "Every Whisper model available",
-        "100% local transcription (offline)",
-        "Auto-paste wherever your cursor is",
-        "Full history, search, export",
-        "GPU acceleration (Vulkan) built in",
-      ],
-      totalsLabel: "All-time activity",
-      stat: {
-        dictations: "Dictations",
-        words: "Words transcribed",
-        audio: "Audio captured",
-      },
-      setupLabel: "Current setup",
-      rowActiveModel: "Active model",
-      rowVersion: "Version",
-    },
+    // The Account panel is gone. There was never an account: no sign-in, no
+    // subscription, no identity. It held marketing copy that About already
+    // makes better, and all-time counters that now sit next to the daily ones
+    // on Home, where someone would actually look for them.
 
     about: {
       tagline:
@@ -418,6 +419,17 @@ export const en = {
 
   onboarding: {
     stepEyebrow: "Step",
+    /**
+     * Deliberately the first step. Everything after it — the mic test, the
+     * model, the hotkey — is unreadable if the app guessed the language
+     * wrong, so this has to come before anything is explained.
+     */
+    language: {
+      title: "Choose your language",
+      description:
+        "Pick the language you want Hyperwisper to use. You can change it at any time from Settings.",
+      cta: "Continue",
+    },
     welcome: {
       title: "Welcome to Hyperwisper.",
       body:

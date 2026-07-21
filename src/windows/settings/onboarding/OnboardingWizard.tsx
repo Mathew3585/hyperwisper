@@ -10,17 +10,37 @@ import {
   Volume2,
   Sparkles,
   Power,
+  Languages,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { api, type AppSettings, type Model, type ModelStatus } from "@/lib/ipc";
 import { events, type DownloadProgress } from "@/lib/events";
-import { useT } from "@/i18n";
-import { HotkeyEditor } from "../panels/ShortcutsPanel";
+import { UI_LOCALES, useI18n, useT, type UiLocale } from "@/i18n";
+import { HotkeyEditor } from "../panels/HotkeyEditor";
 import { Kbd } from "../panels/common";
 
-type StepId = "welcome" | "mic" | "model" | "hotkey" | "launch" | "done";
+type StepId =
+  | "language"
+  | "welcome"
+  | "mic"
+  | "model"
+  | "hotkey"
+  | "launch"
+  | "done";
 
-const STEPS: StepId[] = ["welcome", "mic", "model", "hotkey", "launch", "done"];
+// Language comes first on purpose: every later step explains something, and
+// none of it lands if the app is speaking a language the user doesn't read.
+// The app defaults to English rather than guessing, so this is where the
+// question actually gets answered.
+const STEPS: StepId[] = [
+  "language",
+  "welcome",
+  "mic",
+  "model",
+  "hotkey",
+  "launch",
+  "done",
+];
 const RECOMMENDED_MODEL: Model = "small-q5_1";
 // We match the model by filename rather than enum string because the
 // `kebab-case` serde transform on the Rust side is not perfectly predictable
@@ -38,7 +58,10 @@ interface Props {
 }
 
 export function OnboardingWizard({ settings: initialSettings, onComplete }: Props) {
-  const [step, setStep] = useState<StepId>("welcome");
+  // Must be STEPS[0]. Hardcoding a step name here once left the wizard
+  // opening on "welcome" while the array started at "language": the language
+  // step was counted in the progress dots but only reachable by pressing Back.
+  const [step, setStep] = useState<StepId>(STEPS[0]);
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
 
   const stepIdx = STEPS.indexOf(step);
@@ -78,6 +101,7 @@ export function OnboardingWizard({ settings: initialSettings, onComplete }: Prop
               transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
               className="flex-1 flex flex-col"
             >
+              {step === "language" && <LanguageStep onNext={goNext} />}
               {step === "welcome" && <WelcomeStep onNext={goNext} />}
               {step === "mic" && (
                 <MicStep
@@ -133,6 +157,71 @@ function Progress({ current, total }: { current: number; total: number }) {
           }}
         />
       ))}
+    </div>
+  );
+}
+
+/* ─── Step 0: Language ──────────────────────────────────── */
+
+/**
+ * Every option is written in its own language, never translated. Someone
+ * who opens a French-guessing app but reads only Spanish has to be able to
+ * find "Español" — a list of translated names would be useless to them.
+ */
+function LanguageStep({ onNext }: { onNext: () => void }) {
+  const { locale, setLocale, t } = useI18n();
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col justify-center space-y-8">
+        <Languages size={40} className="text-sand" strokeWidth={1.6} />
+        <div className="space-y-3">
+          <h1 className="text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
+            {t.onboarding.language.title}
+          </h1>
+          <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
+            {t.onboarding.language.description}
+          </p>
+        </div>
+
+        <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
+          {UI_LOCALES.map((option, i) => {
+            const active = option.code === locale;
+            return (
+              <button
+                key={option.code}
+                type="button"
+                lang={option.code}
+                aria-pressed={active}
+                onClick={() => setLocale(option.code as UiLocale)}
+                className={[
+                  "w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors",
+                  i > 0 ? "border-t border-soft" : "",
+                  active ? "bg-sand-soft" : "hover:bg-hover",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "text-[14px]",
+                    active ? "text-app font-medium" : "text-soft",
+                  ].join(" ")}
+                >
+                  {option.native}
+                </span>
+                {active && <Check className="h-4 w-4 text-sand shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <NavRow>
+        <span />
+        <PrimaryButton onClick={onNext}>
+          {t.onboarding.language.cta}
+          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </PrimaryButton>
+      </NavRow>
     </div>
   );
 }

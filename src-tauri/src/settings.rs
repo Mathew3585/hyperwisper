@@ -5,6 +5,13 @@ use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+/// Serde default for opt-out booleans. Needed so a `settings.json` written by
+/// an older build — which has no such key — still deserialises, and lands on
+/// the feature being enabled rather than silently off.
+fn default_true() -> bool {
+    true
+}
+
 /// User-facing settings. Persisted as JSON in `%APPDATA%\Hyperwisper\settings.json`.
 /// All fields have sane defaults so the app works out-of-the-box on first launch
 /// without writing anything to disk.
@@ -29,6 +36,12 @@ pub struct Settings {
 
     /// Whisper transcription language. `"auto"` lets Whisper detect.
     pub language: String,
+
+    /// When true, the global hotkey is released while a game or other
+    /// fullscreen app is in the foreground, so the keystroke reaches that
+    /// app instead of triggering a dictation. Restored automatically.
+    #[serde(default = "default_true")]
+    pub game_mode: bool,
 
     /// Visual style of the recording overlay. `Fat` is the rich pill with
     /// timer and full waveform; `Thin` is a minimal sliver for users who
@@ -81,6 +94,7 @@ impl Default for Settings {
             auto_paste: true,
             preserve_clipboard: false,
             language: "fr".to_string(),
+            game_mode: true,
             overlay_style: OverlayStyle::Fat,
             onboarding_completed: false,
             auto_launch: true,

@@ -31,10 +31,9 @@ export const pt: Dictionary = {
   },
 
   nav: {
-    general: "Geral",
+    home: "Início",
     models: "Modelos",
-    audio: "Áudio",
-    shortcuts: "Atalhos",
+    settings: "Configurações",
     history: "Histórico",
     about: "Sobre",
   },
@@ -139,11 +138,22 @@ export const pt: Dictionary = {
   },
 
   settings: {
+    panel: {
+      title: "Configurações",
+      description: "Tudo o que você pode configurar, em um só lugar.",
+    },
+
     general: {
       holdHintPrefix: "Segure",
       holdHintSuffix: "em qualquer lugar do Windows",
       todayLabel: "Hoje",
       stat: { dictations: "Ditados", words: "Palavras", audio: "Áudio" },
+      totalsLabel: "Desde o início",
+      totalStat: {
+        dictations: "Ditados",
+        words: "Palavras transcritas",
+        audio: "Áudio capturado",
+      },
       systemLabel: "Sistema",
       recentTitle: "Ditados recentes",
       seeAll: "Ver tudo",
@@ -240,6 +250,12 @@ export const pt: Dictionary = {
         description:
           "Restaura o que você tinha copiado antes de ditar, cerca de 250 ms depois da colagem.",
       },
+      gameModeTitle: "Jogos",
+      gameMode: {
+        label: "Pausar enquanto você joga",
+        description:
+          "Libera o atalho enquanto um jogo ou aplicativo em tela cheia está em primeiro plano, para que a tecla chegue ao jogo em vez de iniciar um ditado. É restaurado automaticamente quando você sai.",
+      },
       startupTitle: "Inicialização",
       autoLaunch: {
         label: "Abrir junto com o Windows",
@@ -253,7 +269,7 @@ export const pt: Dictionary = {
       description:
         "O idioma da interface e o idioma em que você dita são independentes — use o app em português e dite em qualquer idioma que o Whisper suporte.",
       uiLabel: "Idioma da interface",
-      uiHint: "Detectado pelo Windows na primeira execução.",
+      uiHint: "Aplica-se na hora, em todas as janelas.",
       transcriptionLabel: "Idioma do ditado",
       transcriptionHint:
         "Defina o idioma que você realmente fala. A detecção automática funciona bem, mas indicar o idioma é mais preciso em ditados curtos.",
@@ -288,8 +304,6 @@ export const pt: Dictionary = {
         description:
           "— segure a tecla enquanto fala e solte para parar. Melhor para frases curtas.",
       },
-      changeModeHintPrefix: "Para mudar de modo, vá até a aba",
-      changeModeHintSuffix: ".",
       editor: {
         capturing: "Aperte sua combinação…",
         escHintSuffix: "para cancelar",
@@ -315,31 +329,6 @@ export const pt: Dictionary = {
         descriptionSuffix:
           "em qualquer lugar do Windows e fale. Seus ditados vão aparecer aqui.",
       },
-    },
-
-    account: {
-      title: "Conta",
-      description: "Sua atividade e sua configuração.",
-      heroTitle: "Está tudo incluso.",
-      heroBody:
-        "O Hyperwisper é gratuito e de código aberto. Nenhum recurso é bloqueado, nenhuma assinatura.",
-      included: [
-        "Ditado ilimitado, sem assinatura",
-        "Todos os modelos Whisper disponíveis",
-        "Transcrição 100% local (offline)",
-        "Colagem automática onde está o cursor",
-        "Histórico completo, busca, exportação",
-        "Aceleração por GPU (Vulkan) inclusa",
-      ],
-      totalsLabel: "Atividade desde o início",
-      stat: {
-        dictations: "Ditados",
-        words: "Palavras transcritas",
-        audio: "Áudio capturado",
-      },
-      setupLabel: "Configuração atual",
-      rowActiveModel: "Modelo ativo",
-      rowVersion: "Versão",
     },
 
     about: {
@@ -387,6 +376,12 @@ export const pt: Dictionary = {
 
   onboarding: {
     stepEyebrow: "Etapa",
+    language: {
+      title: "Escolha seu idioma",
+      description:
+        "Escolha o idioma em que você quer usar o Hyperwisper. Você pode mudar quando quiser nas configurações.",
+      cta: "Continuar",
+    },
     welcome: {
       title: "Boas-vindas ao Hyperwisper.",
       body:

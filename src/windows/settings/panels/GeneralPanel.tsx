@@ -84,6 +84,12 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
   const wordsToday = recent.reduce((s, e) => s + e.wordCount, 0);
   const audioToday = recent.reduce((s, e) => s + e.durationMs, 0) / 1000;
 
+  // All-time counters, inherited from the retired Account panel. Same source,
+  // same arithmetic — the whole history rather than the last 24 hours.
+  const dictationsTotal = history.length;
+  const wordsTotal = history.reduce((s, e) => s + e.wordCount, 0);
+  const audioTotal = history.reduce((s, e) => s + e.durationMs, 0) / 1000;
+
   return (
     <div className="space-y-14">
       {/* ─── Hero ─────────────────────────────────────────────── */}
@@ -136,6 +142,33 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
             icon={<Clock className="h-3 w-3" strokeWidth={2.4} />}
             label={t.settings.general.stat.audio}
             value={formatAudio(audioToday, t)}
+          />
+        </div>
+      </motion.section>
+
+      {/* ─── Stats all time ────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.14 }}
+        className="space-y-3"
+      >
+        <SectionLabel>{t.settings.general.totalsLabel}</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard
+            icon={<Mic className="h-3 w-3" strokeWidth={2.4} />}
+            label={t.settings.general.totalStat.dictations}
+            value={dictationsTotal.toLocaleString(intlLocale)}
+          />
+          <StatCard
+            icon={<FileText className="h-3 w-3" strokeWidth={2.4} />}
+            label={t.settings.general.totalStat.words}
+            value={wordsTotal.toLocaleString(intlLocale)}
+          />
+          <StatCard
+            icon={<Clock className="h-3 w-3" strokeWidth={2.4} />}
+            label={t.settings.general.totalStat.audio}
+            value={formatAudio(audioTotal, t)}
           />
         </div>
       </motion.section>

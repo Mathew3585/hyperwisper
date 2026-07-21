@@ -45,9 +45,13 @@ function isUiLocale(v: string): v is UiLocale {
 }
 
 /**
- * Explicit choice wins; otherwise take the browser/OS language. Tauri's
- * webview reports the Windows display language, so a French Windows opens
- * in French without the user configuring anything.
+ * The user's explicit choice, or English.
+ *
+ * We deliberately do NOT sniff `navigator.language`. Guessing from Windows
+ * sounds helpful but makes the first launch unpredictable — the same build
+ * greets two people differently, and neither was asked. English is the
+ * predictable default, and the first step of the onboarding wizard asks the
+ * question outright, which is a better place to answer it than a guess.
  */
 export function detectLocale(): UiLocale {
   try {
@@ -55,15 +59,6 @@ export function detectLocale(): UiLocale {
     if (stored && isUiLocale(stored)) return stored;
   } catch {
     // localStorage can throw in restricted webview contexts — fall through
-  }
-
-  const candidates = [
-    ...(navigator.languages ?? []),
-    navigator.language ?? "",
-  ];
-  for (const tag of candidates) {
-    const base = tag.split("-")[0]?.toLowerCase() ?? "";
-    if (isUiLocale(base)) return base;
   }
   return "en";
 }

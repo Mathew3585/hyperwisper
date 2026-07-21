@@ -1,5 +1,6 @@
 mod audio;
 mod commands;
+mod gamemode;
 mod history;
 mod hotkey;
 mod installer;
@@ -172,6 +173,9 @@ pub fn run() {
                     tracing::warn!("Emitted hotkey:conflict after delay: {}", e);
                 });
             }
+
+            // Watch for fullscreen games and hand the hotkey back to them.
+            gamemode::spawn_watcher(app.handle().clone());
 
             // Copy the bundled model into the user data dir on first run.
             // Must happen BEFORE `preload_default_model` so the file is at
