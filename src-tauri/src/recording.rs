@@ -40,6 +40,11 @@ const VAD_ABS_MIN_RMS: f32 = 0.002;
 /// roughly 200 ms, so 150 ms is permissive — short transients like a door
 /// slam or mouse click (5–40 ms) can't accumulate that much.
 const VAD_MIN_SPEECH_MS: u32 = 150;
+/// Silence kept either side of the detected speech before handing the audio
+/// to Whisper. Enough to preserve the attack of the first word and the decay
+/// of the last, short enough not to re-invite the hallucinations that
+/// trailing silence causes.
+const VAD_TRIM_PAD_MS: u32 = 250;
 
 pub async fn toggle(app: &AppHandle) {
     let state = app.state::<AppState>();
@@ -72,6 +77,10 @@ pub async fn cancel(app: &AppHandle) {
 
 pub async fn start(app: &AppHandle) -> anyhow::Result<()> {
     let state = app.state::<AppState>();
+    // Invalidate any pending overlay-hide from the dictation before this one.
+    state
+        .recording_generation
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let mic = state.settings.get().microphone_name;
     state.recorder.start_with_device(app.clone(), mic)?;
 
@@ -189,6 +198,19 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
         return;
     }
 
+    // Hand Whisper only the speech, not the silence around it — see
+    // `trim_to_speech`. `duration_ms` above stays the full recording length:
+    // that's what the history entry should report.
+    let untrimmed_len = samples.len();
+    let samples = trim_to_speech(samples, sample_rate, va.speech_span);
+    if samples.len() != untrimmed_len {
+        tracing::info!(
+            "Trimmed silence: {} ms → {} ms",
+            (untrimmed_len as u64 * 1000) / sample_rate.max(1) as u64,
+            (samples.len() as u64 * 1000) / sample_rate.max(1) as u64
+        );
+    }
+
     // Whisper wants 16 kHz mono.
     let app_for_blocking = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
@@ -288,6 +310,9 @@ struct VoiceActivity {
     noise_floor: f32,
     threshold: f32,
     peak: f32,
+    /// Sample range from the first speech frame to the end of the last one.
+    /// `None` when no frame qualified.
+    speech_span: Option<(usize, usize)>,
 }
 
 /// Sum, in milliseconds, the duration of frames loud enough to be speech
@@ -300,6 +325,7 @@ fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
         noise_floor: 0.0,
         threshold: 0.0,
         peak: 0.0,
+        speech_span: None,
     };
 
     if samples.is_empty() || sample_rate == 0 {
@@ -310,7 +336,7 @@ fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
         return empty;
     }
 
-    let mut frame_rms: Vec<f32> = samples
+    let frame_rms: Vec<f32> = samples
         .chunks(frame_samples)
         .filter(|f| !f.is_empty())
         .map(|frame| {
@@ -338,22 +364,82 @@ fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
     // threshold to some fraction of the peak would break exactly that case.
     let threshold = (noise_floor * VAD_NOISE_MULTIPLIER).max(VAD_ABS_MIN_RMS);
 
-    frame_rms.retain(|&rms| rms >= threshold);
-    let speech_frames = frame_rms.len() as u32;
+    let speech: Vec<usize> = frame_rms
+        .iter()
+        .enumerate()
+        .filter(|(_, &rms)| rms >= threshold)
+        .map(|(i, _)| i)
+        .collect();
+
+    let speech_span = match (speech.first(), speech.last()) {
+        (Some(&first), Some(&last)) => Some((
+            first * frame_samples,
+            ((last + 1) * frame_samples).min(samples.len()),
+        )),
+        _ => None,
+    };
 
     VoiceActivity {
-        speech_ms: speech_frames * VAD_FRAME_MS,
+        speech_ms: speech.len() as u32 * VAD_FRAME_MS,
         noise_floor,
         threshold,
         peak,
+        speech_span,
     }
 }
 
+/// Cut the recording down to the stretch that actually contains speech,
+/// keeping a short pad on each side.
+///
+/// Whisper was trained on subtitled video, so when handed silence it invents
+/// what usually fills silence in that corpus: a bare ellipsis, "Merci
+/// beaucoup", a channel outro. Every dictation ends with the half-second it
+/// takes to reach for the hotkey, and that's enough to trigger it. Not
+/// sending the silence is a more reliable fix than trying to recognise the
+/// invented text afterwards — and it makes inference cheaper too.
+fn trim_to_speech(mut samples: Vec<f32>, sample_rate: u32, span: Option<(usize, usize)>) -> Vec<f32> {
+    let Some((first, last)) = span else {
+        return samples;
+    };
+
+    let pad = (sample_rate as u64 * VAD_TRIM_PAD_MS as u64 / 1000) as usize;
+    let start = first.saturating_sub(pad);
+    let end = last.saturating_add(pad).min(samples.len());
+
+    if end <= start || (start == 0 && end == samples.len()) {
+        return samples;
+    }
+
+    samples.truncate(end);
+    samples.drain(..start);
+    samples
+}
+
 async fn finish(app: &AppHandle) {
+    use std::sync::atomic::Ordering;
+
     let _ = app.emit("recording:state", "done");
+
+    // The "Collé" badge lingers for 900 ms before the overlay goes away. If
+    // the user fires off another dictation inside that window — which got a
+    // lot easier once transcription dropped to ~200 ms — this timer must not
+    // tear down the overlay that now belongs to the new recording.
+    let generation = app
+        .state::<AppState>()
+        .recording_generation
+        .load(Ordering::SeqCst);
+
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_millis(900)).await;
+        if app
+            .state::<AppState>()
+            .recording_generation
+            .load(Ordering::SeqCst)
+            != generation
+        {
+            return;
+        }
         if let Some(overlay) = app.get_webview_window("overlay") {
             let _ = overlay.hide();
         }
@@ -463,5 +549,74 @@ mod tests {
     fn degenerate_inputs_do_not_panic() {
         assert_eq!(analyze_voice_activity(&[], SR).speech_ms, 0);
         assert_eq!(analyze_voice_activity(&[0.1, -0.1], 0).speech_ms, 0);
+    }
+
+    fn ms_of(samples: usize) -> u64 {
+        samples as u64 * 1000 / SR as u64
+    }
+
+    /// The hallucination trigger: a dictation ending with the second it takes
+    /// to reach for the hotkey. The trailing silence must go, minus the pad.
+    #[test]
+    fn trailing_silence_is_trimmed_to_the_pad() {
+        let samples = signal(&[(200, 0.0002), (1000, 0.02), (2000, 0.0002)]);
+        let va = analyze_voice_activity(&samples, SR);
+        let trimmed = trim_to_speech(samples, SR, va.speech_span);
+
+        // 1000 ms of speech + up to 250 ms of pad on each side.
+        let ms = ms_of(trimmed.len());
+        assert!(
+            (1000..=1520).contains(&ms),
+            "expected ~1000-1500 ms after trim, got {ms} ms"
+        );
+    }
+
+    /// The pad has to survive, or we clip the first consonant and the last.
+    #[test]
+    fn trim_keeps_padding_around_the_speech() {
+        let samples = signal(&[(1000, 0.0002), (500, 0.02), (1000, 0.0002)]);
+        let va = analyze_voice_activity(&samples, SR);
+        let trimmed = trim_to_speech(samples, SR, va.speech_span);
+
+        let ms = ms_of(trimmed.len());
+        assert!(ms > 500, "padding was dropped: {ms} ms for 500 ms of speech");
+    }
+
+    /// Pauses inside a dictation are speech context, not trailing silence —
+    /// trimming must only touch the ends.
+    #[test]
+    fn internal_pauses_are_preserved() {
+        let samples = signal(&[
+            (100, 0.0002),
+            (400, 0.02),
+            (1500, 0.0002), // the user thinking mid-sentence
+            (400, 0.02),
+            (100, 0.0002),
+        ]);
+        let va = analyze_voice_activity(&samples, SR);
+        let trimmed = trim_to_speech(samples, SR, va.speech_span);
+
+        let ms = ms_of(trimmed.len());
+        assert!(
+            ms >= 2300,
+            "internal pause was cut out: {ms} ms (expected ≥2300)"
+        );
+    }
+
+    /// Audio that's speech end to end has nothing to trim; the buffer should
+    /// come back untouched rather than losing its edges to an off-by-one.
+    #[test]
+    fn fully_voiced_audio_is_returned_intact() {
+        let samples = signal(&[(1000, 0.02)]);
+        let len = samples.len();
+        let va = analyze_voice_activity(&samples, SR);
+        assert_eq!(trim_to_speech(samples, SR, va.speech_span).len(), len);
+    }
+
+    #[test]
+    fn trim_without_a_span_is_a_no_op() {
+        let samples = signal(&[(500, 0.001)]);
+        let len = samples.len();
+        assert_eq!(trim_to_speech(samples, SR, None).len(), len);
     }
 }

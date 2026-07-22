@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
@@ -20,6 +21,12 @@ pub struct AppState {
     pub overlay_position: Mutex<Option<(i32, i32)>>,
     /// Persisted user settings (mic, mode, hotkey, etc.).
     pub settings: SettingsStore,
+    /// Bumped on every recording start. The overlay hide that runs 900 ms
+    /// after a dictation completes captures this value when it's scheduled
+    /// and bails if it changed — otherwise triggering the hotkey again
+    /// inside that window makes the *previous* dictation's timer hide the
+    /// *new* recording's overlay.
+    pub recording_generation: AtomicU64,
 }
 
 impl AppState {
@@ -30,6 +37,7 @@ impl AppState {
             default_model: Model::default(),
             overlay_position: Mutex::new(load_overlay_position()),
             settings: SettingsStore::new(),
+            recording_generation: AtomicU64::new(0),
         }
     }
 }

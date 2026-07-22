@@ -134,7 +134,11 @@ impl WhisperEngine {
         let started = Instant::now();
 
         let audio_ctx = audio_ctx_for(samples_16k_mono.len());
-        let text = self.run(samples_16k_mono, audio_ctx)?;
+        let raw = self.run(samples_16k_mono, audio_ctx)?;
+        let text = strip_trailing_artifacts(&raw);
+        if text != raw {
+            tracing::info!("Stripped trailing artifact: {:?} → {:?}", raw, text);
+        }
         let elapsed = started.elapsed();
 
         tracing::info!(
@@ -170,6 +174,10 @@ impl WhisperEngine {
         // truncated; the perf cost on short clips is negligible.
         params.set_single_segment(false);
         params.set_suppress_blank(true);
+        // Suppress non-speech tokens: the bracketed sound annotations
+        // ("[Musique]", "(rires)") and standalone punctuation that Whisper
+        // learned from subtitle tracks and likes to emit over quiet audio.
+        params.set_suppress_nst(true);
         // Disable temperature fallback (greedy already + skip retry-on-uncertainty).
         params.set_temperature(0.0);
         params.set_temperature_inc(0.0);
@@ -218,6 +226,65 @@ fn audio_ctx_for(n_samples: usize) -> i32 {
     (scaled as i32).clamp(AUDIO_CTX_MIN, AUDIO_CTX_FULL)
 }
 
+/// Subtitle-corpus filler Whisper emits over silence. Matched case-insensitively
+/// against the very end of the transcript, never anywhere else.
+///
+/// Deliberately narrow. A bare "Merci beaucoup" is *not* in this list even
+/// though it shows up as a hallucination, because people genuinely end
+/// dictations that way — deleting a sentence the user actually spoke is a
+/// worse failure than leaving a stray one. Trimming the trailing silence
+/// before inference is what's meant to stop those; this list only catches
+/// the outros that carry no plausible dictated meaning.
+const TRAILING_ARTIFACTS: &[&str] = &[
+    "sous-titres réalisés par la communauté d'amara.org",
+    "sous-titres réalisés par l'amara.org",
+    "sous-titrage société radio-canada",
+    "sous-titrage st' 501",
+    "merci d'avoir regardé cette vidéo",
+    "merci d'avoir regardé cette vidéo !",
+    "n'hésitez pas à vous abonner",
+    "abonnez-vous !",
+    "thanks for watching!",
+    "thank you for watching!",
+];
+
+/// Strip trailing filler from a transcript: the ellipsis Whisper tacks on
+/// when a sentence trails into silence, and the subtitle outros above.
+/// Repeats until stable, since the two often arrive stacked ("… - Merci").
+fn strip_trailing_artifacts(text: &str) -> String {
+    let mut s = text.trim_end();
+
+    loop {
+        let before = s.len();
+
+        // A run of 2+ dots, or a real ellipsis character. A single '.' is
+        // ordinary punctuation and stays.
+        if s.ends_with('…') {
+            s = s[..s.len() - '…'.len_utf8()].trim_end();
+        } else if s.ends_with("..") {
+            s = s.trim_end_matches('.').trim_end();
+        }
+
+        // Separator left dangling by an artifact we removed on a prior pass.
+        s = s.trim_end_matches(['-', '–', ',', ';']).trim_end();
+
+        for artifact in TRAILING_ARTIFACTS {
+            if let Some(cut) = s.len().checked_sub(artifact.len()) {
+                if s.is_char_boundary(cut) && s[cut..].to_lowercase() == *artifact {
+                    s = s[..cut].trim_end();
+                    break;
+                }
+            }
+        }
+
+        if s.len() == before {
+            break;
+        }
+    }
+
+    s.to_string()
+}
+
 fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         s.to_string()
@@ -259,6 +326,76 @@ mod tests {
     #[test]
     fn empty_input_does_not_underflow() {
         assert_eq!(audio_ctx_for(0), AUDIO_CTX_MIN);
+    }
+
+    /// Verbatim from the user's history.jsonl.
+    #[test]
+    fn strips_the_trailing_ellipsis_seen_in_the_wild() {
+        assert_eq!(
+            strip_trailing_artifacts(
+                "je te laisse sur les changements et on teste tout ça directement après. ..."
+            ),
+            "je te laisse sur les changements et on teste tout ça directement après."
+        );
+        assert_eq!(strip_trailing_artifacts("on est goo..."), "on est goo");
+    }
+
+    #[test]
+    fn keeps_ordinary_sentence_punctuation() {
+        assert_eq!(
+            strip_trailing_artifacts("Donc au final on passe bien sur le network object."),
+            "Donc au final on passe bien sur le network object."
+        );
+        assert_eq!(
+            strip_trailing_artifacts("Comment ça va ?"),
+            "Comment ça va ?"
+        );
+    }
+
+    /// An ellipsis mid-sentence is the speaker's own pause and must survive —
+    /// only the trailing one is filler.
+    #[test]
+    fn leaves_internal_ellipsis_alone() {
+        assert_eq!(
+            strip_trailing_artifacts("alors... je réfléchis encore"),
+            "alors... je réfléchis encore"
+        );
+    }
+
+    #[test]
+    fn strips_subtitle_outros_case_insensitively() {
+        assert_eq!(
+            strip_trailing_artifacts(
+                "voilà pour aujourd'hui. Sous-titres réalisés par la communauté d'Amara.org"
+            ),
+            "voilà pour aujourd'hui."
+        );
+    }
+
+    /// Stacked filler: ellipsis, dangling dash, then an outro.
+    #[test]
+    fn strips_stacked_filler_in_one_pass() {
+        assert_eq!(
+            strip_trailing_artifacts("le vrai texte - Thanks for watching! ..."),
+            "le vrai texte"
+        );
+    }
+
+    /// The judgement call in `TRAILING_ARTIFACTS`: "merci beaucoup" is left
+    /// alone because it's something a person actually says.
+    #[test]
+    fn does_not_delete_words_the_user_may_have_spoken() {
+        assert_eq!(
+            strip_trailing_artifacts("c'est bon pour moi, merci beaucoup"),
+            "c'est bon pour moi, merci beaucoup"
+        );
+    }
+
+    #[test]
+    fn handles_degenerate_text() {
+        assert_eq!(strip_trailing_artifacts(""), "");
+        assert_eq!(strip_trailing_artifacts("..."), "");
+        assert_eq!(strip_trailing_artifacts("   "), "");
     }
 
     /// Measures the thing this whole change is about: after `load()` has run
