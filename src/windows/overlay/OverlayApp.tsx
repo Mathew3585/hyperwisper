@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Check, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -6,6 +6,7 @@ import { events, type RecordingState } from "@/lib/events";
 import { sounds } from "@/lib/sounds";
 import { api, type OverlayStyle } from "@/lib/ipc";
 import { useT } from "@/i18n";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 
 const FAT_BAR_COUNT = 36;
 const THIN_BAR_COUNT = 7;
@@ -21,85 +22,44 @@ const PILL_SPRING = { type: "spring" as const, stiffness: 280, damping: 28, mass
 export function OverlayApp() {
   const [state, setState] = useState<RecordingState>("idle");
   const [style, setStyle] = useState<OverlayStyle>("fat");
-  const [fatLevels, setFatLevels] = useState<number[]>(() =>
-    Array(FAT_BAR_COUNT).fill(0)
-  );
-  const [thinLevels, setThinLevels] = useState<number[]>(() =>
-    Array(THIN_BAR_COUNT).fill(0)
-  );
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef<number | null>(null);
+  const prevState = useRef<RecordingState>("idle");
 
   // ─── Settings wiring (style follows live changes) ─────────────────────
-  useEffect(() => {
-    let unsub: (() => void) | null = null;
-    let cancelled = false;
-
-    const fetchStyle = () => {
-      api
-        .getSettings()
-        .then((s) => {
-          if (!cancelled) setStyle(s.overlayStyle);
-        })
-        .catch(() => {});
-    };
-
-    fetchStyle();
-    events
-      .onSettingsChanged(fetchStyle)
-      .then((u) => {
-        if (cancelled) u();
-        else unsub = u;
-      });
-
-    return () => {
-      cancelled = true;
-      if (unsub) unsub();
-    };
+  const fetchStyle = useCallback(() => {
+    api
+      .getSettings()
+      .then((s) => setStyle(s.overlayStyle))
+      .catch(() => {});
   }, []);
+  useEffect(fetchStyle, [fetchStyle]);
+  useTauriEvent(events.onSettingsChanged, fetchStyle);
 
-  // ─── Event wiring ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const unsubs: Array<() => void> = [];
+  // ─── Recording state + feedback sounds ────────────────────────────────
+  // Sounds are side effects, so they key off a ref of the previous state
+  // rather than running inside a setState updater (which React may call
+  // twice). Cancel — X button or the global Esc shortcut, which never
+  // reaches this unfocused window as a keydown — shows up here as
+  // recording → idle, so that transition is where its sound lives.
+  useTauriEvent(events.onRecordingState, (s) => {
+    const prev = prevState.current;
+    prevState.current = s;
+    if (s === prev) return;
 
-    events
-      .onRecordingState((s) => {
-        setState((prev) => {
-          if (s === "recording" && prev !== "recording") sounds.start();
-          if (prev === "recording" && s === "transcribing") sounds.stop();
-          if (s === "done") sounds.done();
-          return s;
-        });
-        if (s === "recording") {
-          startedAt.current = Date.now();
-          setElapsed(0);
-          setFatLevels(Array(FAT_BAR_COUNT).fill(0));
-          setThinLevels(Array(THIN_BAR_COUNT).fill(0));
-        } else if (s === "idle") {
-          startedAt.current = null;
-        }
-      })
-      .then((u) => unsubs.push(u));
+    if (s === "recording") sounds.start();
+    else if (prev === "recording" && s === "transcribing") sounds.stop();
+    else if (prev === "recording" && s === "idle") sounds.cancel();
+    else if (s === "done") sounds.done();
 
-    events
-      .onRecordingLevel((rms) => {
-        const v = Math.min(1, Math.sqrt(rms) * 4.2);
-        setFatLevels((prev) => [...prev.slice(1), v]);
-        setThinLevels((prev) => [...prev.slice(1), v]);
-      })
-      .then((u) => unsubs.push(u));
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        sounds.cancel();
-        api.cancelRecording().catch(() => {});
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    unsubs.push(() => window.removeEventListener("keydown", onKey));
-
-    return () => unsubs.forEach((u) => u());
-  }, []);
+    if (s === "recording") {
+      startedAt.current = Date.now();
+      setElapsed(0);
+    } else if (s === "idle") {
+      startedAt.current = null;
+    }
+    setState(s);
+  });
 
   // ─── Persist overlay position when the user drags the pill ─────────────
   useEffect(() => {
@@ -155,14 +115,12 @@ export function OverlayApp() {
           (style === "fat" ? (
             <FatPill
               state={state}
-              levels={fatLevels}
               elapsed={elapsed}
               onMouseDown={onPillMouseDown}
             />
           ) : (
             <ThinPill
               state={state}
-              levels={thinLevels}
               onMouseDown={onPillMouseDown}
             />
           ))}
@@ -175,12 +133,10 @@ export function OverlayApp() {
 
 function FatPill({
   state,
-  levels,
   elapsed,
   onMouseDown,
 }: {
   state: RecordingState;
-  levels: number[];
   elapsed: number;
   onMouseDown: (e: React.MouseEvent) => void;
 }) {
@@ -213,7 +169,7 @@ function FatPill({
             className="flex items-center gap-4"
           >
             <RecordingDot />
-            <FatWaveform levels={levels} />
+            <FatWaveform />
             <span
               className="font-mono text-[11px] tabular-nums min-w-[34px] text-right tracking-tight"
               style={{ color: "rgba(244, 241, 234, 0.55)" }}
@@ -270,22 +226,16 @@ function FatPill({
   );
 }
 
-function FatWaveform({ levels }: { levels: number[] }) {
+function FatWaveform() {
   return (
-    <div className="flex items-center justify-center gap-[3px] h-14 w-[280px]">
-      {levels.map((v, i) => (
-        <motion.div
-          key={i}
-          animate={{
-            height: `${Math.max(BAR_HEIGHT_MIN, v * BAR_HEIGHT_MAX)}px`,
-            opacity: 0.4 + v * 0.6,
-          }}
-          transition={{ duration: 0.07, ease: "linear" }}
-          className="w-[3px] rounded-full"
-          style={{ background: "hsl(30, 65%, 78%)" }}
-        />
-      ))}
-    </div>
+    <LiveWaveform
+      count={FAT_BAR_COUNT}
+      min={BAR_HEIGHT_MIN}
+      max={BAR_HEIGHT_MAX}
+      baseOpacity={0.4}
+      className="gap-[3px] h-14 w-[280px]"
+      barClassName="w-[3px]"
+    />
   );
 }
 
@@ -293,11 +243,9 @@ function FatWaveform({ levels }: { levels: number[] }) {
 
 function ThinPill({
   state,
-  levels,
   onMouseDown,
 }: {
   state: RecordingState;
-  levels: number[];
   onMouseDown: (e: React.MouseEvent) => void;
 }) {
   return (
@@ -328,7 +276,7 @@ function ThinPill({
             className="flex items-center gap-2.5"
           >
             <RecordingDot small />
-            <ThinWaveform levels={levels} />
+            <ThinWaveform />
           </motion.div>
         )}
 
@@ -366,19 +314,80 @@ function ThinPill({
   );
 }
 
-function ThinWaveform({ levels }: { levels: number[] }) {
+function ThinWaveform() {
   return (
-    <div className="flex items-center justify-center gap-[2px] h-4 w-[110px]">
-      {levels.map((v, i) => (
-        <motion.div
+    <LiveWaveform
+      count={THIN_BAR_COUNT}
+      min={THIN_BAR_HEIGHT_MIN}
+      max={THIN_BAR_HEIGHT_MAX}
+      baseOpacity={0.5}
+      className="gap-[2px] h-4 w-[110px]"
+      barClassName="w-[2px]"
+    />
+  );
+}
+
+/**
+ * Scrolling level meter fed by `recording:level` (~30 Hz).
+ *
+ * Levels never touch React state: each event shifts a ring buffer and
+ * writes the bars' height/opacity straight onto their DOM nodes, with a
+ * CSS transition doing the smoothing. Routing them through state used to
+ * re-render the whole pill 30×/s — re-running framer's `layout`
+ * measurement and starting 36 fresh tweens every tick. Mounted only while
+ * recording, so level events from the onboarding mic test (or anything
+ * else) cost nothing while the overlay is hidden.
+ */
+function LiveWaveform({
+  count,
+  min,
+  max,
+  baseOpacity,
+  className,
+  barClassName,
+}: {
+  count: number;
+  min: number;
+  max: number;
+  baseOpacity: number;
+  className: string;
+  barClassName: string;
+}) {
+  const bars = useRef<Array<HTMLDivElement | null>>([]);
+  const levels = useRef<number[]>(Array(count).fill(0));
+
+  useTauriEvent(events.onRecordingLevel, (rms) => {
+    const buf = levels.current;
+    buf.shift();
+    buf.push(Math.min(1, Math.sqrt(rms) * 4.2));
+    for (let i = 0; i < count; i++) {
+      const el = bars.current[i];
+      if (!el) continue;
+      const v = buf[i];
+      el.style.height = `${Math.max(min, v * max)}px`;
+      el.style.opacity = String(baseOpacity + v * (1 - baseOpacity));
+    }
+  });
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      // Fixed-size box: bar height changes can't ripple layout outward.
+      style={{ contain: "strict" }}
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <div
           key={i}
-          animate={{
-            height: `${Math.max(THIN_BAR_HEIGHT_MIN, v * THIN_BAR_HEIGHT_MAX)}px`,
-            opacity: 0.5 + v * 0.5,
+          ref={(el) => {
+            bars.current[i] = el;
           }}
-          transition={{ duration: 0.07, ease: "linear" }}
-          className="w-[2px] rounded-full"
-          style={{ background: "hsl(30, 65%, 78%)" }}
+          className={`rounded-full ${barClassName}`}
+          style={{
+            height: `${min}px`,
+            opacity: baseOpacity,
+            background: "hsl(30, 65%, 78%)",
+            transition: "height 70ms linear, opacity 70ms linear",
+          }}
         />
       ))}
     </div>
@@ -408,8 +417,9 @@ function CancelButton() {
   return (
     <button
       onMouseDown={(e) => e.stopPropagation()}
+      // The cancel sound plays from the recording → idle transition, so
+      // the X button and the Esc shortcut sound the same and never twice.
       onClick={() => {
-        sounds.cancel();
         api.cancelRecording().catch(() => {});
       }}
       className="flex items-center justify-center h-[18px] w-[18px] rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
@@ -468,9 +478,10 @@ function DoneCheck({ small }: { small?: boolean }) {
 
 function pillSurface(): React.CSSProperties {
   return {
+    // No backdrop-filter: in a transparent WebView2 window it can only
+    // sample the webview's own (empty) content, never the desktop behind
+    // it, so it cost a filter pass per repaint for no visible effect.
     background: "rgba(28, 24, 21, 0.94)",
-    backdropFilter: "blur(24px) saturate(140%)",
-    WebkitBackdropFilter: "blur(24px) saturate(140%)",
     border: "1px solid rgba(255, 245, 230, 0.08)",
     boxShadow:
       "0 10px 40px -10px rgba(0,0,0,0.55), inset 0 1px 0 0 rgba(255,240,220,0.05)",

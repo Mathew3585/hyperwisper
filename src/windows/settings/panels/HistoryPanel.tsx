@@ -6,6 +6,7 @@ import { events } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/datetime";
 import { useI18n, useT } from "@/i18n";
 import { PanelHeader } from "./common";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 
 export function HistoryPanel() {
   const t = useT();
@@ -17,13 +18,11 @@ export function HistoryPanel() {
 
   useEffect(() => {
     refresh();
-
-    const unsubs: Array<() => void> = [];
-    events.onHistoryNew(() => {
-      refresh();
-    }).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((u) => u());
   }, []);
+
+  useTauriEvent(events.onHistoryNew, (entry) =>
+    setEntries((list) => (list.some((e) => e.id === entry.id) ? list : [entry, ...list]))
+  );
 
   async function refresh() {
     try {

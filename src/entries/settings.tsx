@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
 import { SettingsApp } from "@/windows/settings/SettingsApp";
-import { InstallerApp } from "@/windows/installer/InstallerApp";
-import { UninstallerApp } from "@/windows/installer/UninstallerApp";
+
+// Installer and uninstaller only ever render on the portable binary or
+// during removal — split them out so a normal launch doesn't parse them.
+const InstallerApp = lazy(() =>
+  import("@/windows/installer/InstallerApp").then((m) => ({ default: m.InstallerApp }))
+);
+const UninstallerApp = lazy(() =>
+  import("@/windows/installer/UninstallerApp").then((m) => ({ default: m.UninstallerApp }))
+);
 import { api, type InstallerStatus } from "@/lib/ipc";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 import { wireGlobalToasts } from "@/lib/toasts";
@@ -45,11 +52,19 @@ function Root() {
   if (!status) return null;
 
   if (status.uninstallMode) {
-    return <UninstallerApp />;
+    return (
+      <Suspense fallback={null}>
+        <UninstallerApp />
+      </Suspense>
+    );
   }
 
   if (!status.runningInstalled) {
-    return <InstallerApp />;
+    return (
+      <Suspense fallback={null}>
+        <InstallerApp />
+      </Suspense>
+    );
   }
 
   return <SettingsApp />;

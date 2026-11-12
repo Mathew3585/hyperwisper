@@ -1,9 +1,10 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::audio::resample_mono;
 use crate::history::{self, HistoryEntry};
+use crate::metrics::{self, DictationMetrics};
 use crate::paste::PasteOutcome;
 use crate::state::AppState;
 
@@ -39,7 +40,7 @@ const VAD_ABS_MIN_RMS: f32 = 0.002;
 /// Minimum total speech budget across the recording. One spoken syllable is
 /// roughly 200 ms, so 150 ms is permissive — short transients like a door
 /// slam or mouse click (5–40 ms) can't accumulate that much.
-const VAD_MIN_SPEECH_MS: u32 = 150;
+pub(crate) const VAD_MIN_SPEECH_MS: u32 = 150;
 /// Silence kept either side of the detected speech before handing the audio
 /// to Whisper. Enough to preserve the attack of the first word and the decay
 /// of the last, short enough not to re-invite the hallucinations that
@@ -137,32 +138,54 @@ fn position_overlay(overlay: &tauri::WebviewWindow, state: &AppState) {
 }
 
 pub async fn stop_and_transcribe(app: &AppHandle) {
+    let t_stop = Instant::now();
+    let mut m = DictationMetrics::now();
+    m.language = app.state::<AppState>().settings.get().language;
+
     crate::hotkey::unregister_cancel_key(app);
     let _ = app.emit("recording:state", "transcribing");
 
     // Joining the audio thread is blocking, so run the stop on the blocking
     // pool to avoid stalling tokio for ~tens of milliseconds.
     let app_for_stop = app.clone();
-    let stop_result = tauri::async_runtime::spawn_blocking(move || {
-        let state = app_for_stop.state::<AppState>();
-        let sample_rate = state.recorder.sample_rate();
-        let samples = state.recorder.stop()?;
-        Ok::<_, anyhow::Error>((samples, sample_rate))
+    let capture = tauri::async_runtime::spawn_blocking(move || {
+        app_for_stop.state::<AppState>().recorder.stop()
     })
     .await
     .unwrap_or_else(|e| Err(anyhow::anyhow!("join: {e}")));
 
-    let (samples, sample_rate) = match stop_result {
-        Ok(v) => v,
+    let capture = match capture {
+        Ok(c) => c,
         Err(e) => {
             tracing::error!("Stop error: {}", e);
             let _ = app.emit("recording:error", "Capture audio interrompue".to_string());
+            m.outcome = "error".into();
+            m.error = Some(format!("stop: {e}"));
+            record(app, m, t_stop);
             finish_silently(app).await;
             return;
         }
     };
 
-    let duration_ms = (samples.len() as u64 * 1000) / sample_rate.max(1) as u64;
+    let sample_rate = capture.format.sample_rate.max(1);
+    m.device = capture.format.device.clone();
+    m.sample_rate = capture.format.sample_rate;
+    m.channels = capture.format.channels;
+    m.sample_format = capture.format.sample_format.clone();
+    m.channel_rms = capture.channel_stats.iter().map(|c| c.rms).collect();
+    m.channel_peak = capture.channel_stats.iter().map(|c| c.peak).collect();
+    m.clipped_pct = capture
+        .channel_stats
+        .iter()
+        .map(|c| c.clipped_ratio * 100.0)
+        .fold(0.0, f32::max);
+    m.used_channels = capture.used_channels.clone();
+    m.stop_ms = capture.stop_ms;
+    m.stream_start_ms = capture.stream_start_ms;
+
+    let samples = capture.mono;
+    let duration_ms = (samples.len() as u64 * 1000) / sample_rate as u64;
+    m.recorded_ms = duration_ms;
     tracing::info!(
         "Captured {} samples ({} ms @ {} Hz)",
         samples.len(),
@@ -172,6 +195,8 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
 
     if duration_ms < MIN_DURATION_MS {
         tracing::info!("Skipping transcription (too short: {} ms)", duration_ms);
+        m.outcome = "tooShort".into();
+        record(app, m, t_stop);
         finish_silently(app).await;
         return;
     }
@@ -180,6 +205,7 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
     // carry speech-level energy. Silences between phrases contribute zero —
     // they neither help nor hurt the budget — so long pauses don't get
     // mistaken for "no voice".
+    let t_vad = Instant::now();
     let va = analyze_voice_activity(&samples, sample_rate);
     tracing::info!(
         "Voice activity check: {} ms of speech (need ≥{} ms) — \
@@ -190,10 +216,15 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
         va.threshold,
         va.peak
     );
-    let speech_ms = va.speech_ms;
-    if speech_ms < VAD_MIN_SPEECH_MS {
+    m.speech_ms = va.speech_ms;
+    m.noise_floor = va.noise_floor;
+    m.vad_threshold = va.threshold;
+    if va.speech_ms < VAD_MIN_SPEECH_MS {
         tracing::info!("Skipping transcription (no voice detected)");
         let _ = app.emit("recording:no-voice", ());
+        m.vad_ms = ms_since(t_vad);
+        m.outcome = "noVoice".into();
+        record(app, m, t_stop);
         finish_silently(app).await;
         return;
     }
@@ -201,115 +232,170 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
     // Hand Whisper only the speech, not the silence around it — see
     // `trim_to_speech`. `duration_ms` above stays the full recording length:
     // that's what the history entry should report.
-    let untrimmed_len = samples.len();
-    let samples = trim_to_speech(samples, sample_rate, va.speech_span);
-    if samples.len() != untrimmed_len {
-        tracing::info!(
-            "Trimmed silence: {} ms → {} ms",
-            (untrimmed_len as u64 * 1000) / sample_rate.max(1) as u64,
-            (samples.len() as u64 * 1000) / sample_rate.max(1) as u64
-        );
+    let mut samples = trim_to_speech(samples, sample_rate, va.speech_span);
+    m.vad_ms = ms_since(t_vad);
+    // Bring quiet inputs (low interface gain, headset, laptop array) up to
+    // the level Whisper was trained on. Never attenuates.
+    m.gain_db = crate::audio::channels::normalize(&mut samples);
+    m.trimmed_ms = (samples.len() as u64 * 1000) / sample_rate as u64;
+    if m.trimmed_ms != duration_ms {
+        tracing::info!("Trimmed silence: {} ms → {} ms", duration_ms, m.trimmed_ms);
     }
 
-    // Whisper wants 16 kHz mono.
+    // Read per dictation, so a language change in Settings applies to the
+    // very next recording without touching the loaded engine.
+    let language = m.language.clone();
     let app_for_blocking = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         let state = app_for_blocking.state::<AppState>();
 
-        let t_resample = std::time::Instant::now();
-        let samples_16k = match resample_mono(&samples, sample_rate, WHISPER_SAMPLE_RATE) {
-            Ok(s) => s,
-            Err(e) => return Err(format!("resample: {e}")),
-        };
-        let resample_ms = t_resample.elapsed().as_millis();
+        // Whisper wants 16 kHz mono.
+        let t_resample = Instant::now();
+        let samples_16k = resample_mono(&samples, sample_rate, WHISPER_SAMPLE_RATE)
+            .map_err(|e| format!("resample: {e}"))?;
+        let resample_ms = ms_since(t_resample);
 
         let guard = state.whisper.read();
-        let engine = match guard.as_ref() {
-            Some(e) => e,
-            None => {
-                return Err(String::from(
-                    "Modèle non chargé — télécharge un modèle dans Settings",
-                ));
-            }
-        };
-
+        let engine = guard
+            .as_ref()
+            .ok_or_else(|| String::from("Modèle non chargé — télécharge un modèle dans Settings"))?;
         let model_name = engine.model().display_name().to_string();
 
-        let t_inference = std::time::Instant::now();
-        let result = engine.transcribe(&samples_16k);
-        let inference_ms = t_inference.elapsed().as_millis();
+        let t_inference = Instant::now();
+        let r = engine
+            .transcribe(&samples_16k, &language)
+            .map_err(|e| format!("whisper: {e}"))?;
+        let inference_ms = ms_since(t_inference);
         tracing::info!(
-            "Latency breakdown: resample={}ms, inference={}ms (audio {}ms)",
+            "Latency breakdown: resample={:.0}ms, lock_wait={:.0}ms, whisper={:.0}ms (audio {}ms)",
             resample_ms,
-            inference_ms,
+            r.lock_wait_ms,
+            r.full_ms,
             duration_ms
         );
-
-        match result {
-            Ok(r) => Ok((r.text, model_name, inference_ms as u64)),
-            Err(e) => Err(format!("whisper: {e}")),
-        }
+        Ok::<_, String>((r, model_name, resample_ms, inference_ms))
     })
     .await
     .unwrap_or_else(|e| Err(format!("join: {e}")));
 
-    match result {
-        Ok((text, model_name, _inference_ms)) if !text.is_empty() => {
-            // Persist to history before pasting so a paste failure doesn't lose it.
-            let entry = HistoryEntry::new(text.clone(), duration_ms, model_name);
-            if let Err(e) = history::append(&entry) {
-                tracing::error!("history append: {}", e);
-            }
-            let _ = app.emit("history:new", &entry);
-            paste_and_finish(app, text).await;
-        }
-        Ok(_) => {
-            // Whisper returned but produced no usable text (silence, garbage).
-            // Skip the "Collé" feedback — nothing actually was.
-            finish_silently(app).await;
+    let (r, model_name) = match result {
+        Ok((r, model_name, resample_ms, inference_ms)) => {
+            m.resample_ms = resample_ms;
+            m.inference_ms = inference_ms;
+            m.lock_wait_ms = r.lock_wait_ms;
+            m.rtf = if m.trimmed_ms > 0 {
+                r.full_ms / m.trimmed_ms as f64
+            } else {
+                0.0
+            };
+            m.model = model_name.clone();
+            m.audio_ctx = r.audio_ctx;
+            m.n_tokens = r.n_tokens;
+            m.no_speech_prob = r.no_speech_prob;
+            m.repeated_words = r.repeated_words;
+            m.detected_language = r.detected_language.clone();
+            m.chars = r.text.chars().count() as u32;
+            m.words = r.text.split_whitespace().count() as u32;
+            (r, model_name)
         }
         Err(err) => {
             tracing::error!("Transcription failed: {}", err);
-            let _ = app.emit("recording:error", err);
+            let _ = app.emit("recording:error", err.clone());
+            m.outcome = "error".into();
+            m.error = Some(err);
+            record(app, m, t_stop);
             finish_silently(app).await;
+            return;
         }
+    };
+
+    if r.text.is_empty() {
+        // Whisper returned but produced no usable text (silence, garbage).
+        // Skip the "Collé" feedback — nothing actually was.
+        m.outcome = "empty".into();
+        record(app, m, t_stop);
+        finish_silently(app).await;
+        return;
     }
+
+    // Persist to history before pasting so a paste failure doesn't lose it.
+    let entry = HistoryEntry::new(r.text.clone(), duration_ms, model_name);
+    if let Err(e) = history::append(&entry) {
+        tracing::error!("history append: {}", e);
+    }
+    let _ = app.emit("history:new", &entry);
+
+    let t_paste = Instant::now();
+    let (outcome, paste_error) = paste(app, r.text).await;
+    m.paste_ms = ms_since(t_paste);
+    m.outcome = outcome.into();
+    m.error = paste_error;
+    record(app, m, t_stop);
+    finish(app).await;
 }
 
-async fn paste_and_finish(app: &AppHandle, text: String) {
+/// Copy + Ctrl+V. Returns the metrics outcome and any error text.
+async fn paste(app: &AppHandle, text: String) -> (&'static str, Option<String>) {
     let settings = app.state::<AppState>().settings.get();
     let auto_paste = settings.auto_paste;
     let preserve = settings.preserve_clipboard;
 
-    let text_for_paste = text.clone();
     let app_for_paste = app.clone();
-    let _ = tauri::async_runtime::spawn_blocking(move || {
-        match crate::paste::paste_text(&text_for_paste, auto_paste, preserve) {
-            Ok(PasteOutcome::Pasted) => {}
+    tauri::async_runtime::spawn_blocking(move || {
+        match crate::paste::paste_text(&text, auto_paste, preserve) {
+            Ok(PasteOutcome::Pasted) => ("pasted", None),
             Ok(PasteOutcome::ClipboardOnly { reason }) => {
                 tracing::warn!("Paste fell back to clipboard-only: {}", reason);
-                let _ = app_for_paste.emit("paste:error", reason);
+                let _ = app_for_paste.emit("paste:error", reason.clone());
+                ("clipboard", Some(reason))
             }
             Err(e) => {
                 tracing::error!("Paste error: {}", e);
                 let _ = app_for_paste.emit("paste:error", e.to_string());
+                ("error", Some(format!("paste: {e}")))
             }
         }
     })
-    .await;
+    .await
+    .unwrap_or(("error", Some("paste: join failed".into())))
+}
 
-    finish(app).await;
+fn ms_since(t: Instant) -> f64 {
+    t.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Stamp the end-to-end latency, then persist the record and push it to the
+/// Diagnostics panel. File I/O goes to the blocking pool, off the paste path.
+fn record(app: &AppHandle, mut m: DictationMetrics, t_stop: Instant) {
+    m.total_ms = ms_since(t_stop);
+    tracing::info!(
+        "Dictation {}: total={:.0}ms stop={:.0} vad={:.0} resample={:.0} inference={:.0} paste={:.0} rtf={:.2}",
+        m.outcome,
+        m.total_ms,
+        m.stop_ms,
+        m.vad_ms,
+        m.resample_ms,
+        m.inference_ms,
+        m.paste_ms,
+        m.rtf
+    );
+    let _ = app.emit("metrics:new", &m);
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Err(e) = metrics::append(&m) {
+            tracing::warn!("metrics append: {}", e);
+        }
+    });
 }
 
 /// What the voice-activity pass concluded about a recording. The extra
 /// fields beyond `speech_ms` exist so the log line can explain *why* a
 /// recording was rejected — diagnosing the Focusrite case from `0 ms of
 /// speech` alone cost far more time than carrying three floats around.
-struct VoiceActivity {
-    speech_ms: u32,
-    noise_floor: f32,
-    threshold: f32,
-    peak: f32,
+pub(crate) struct VoiceActivity {
+    pub speech_ms: u32,
+    pub noise_floor: f32,
+    pub threshold: f32,
+    pub peak: f32,
     /// Sample range from the first speech frame to the end of the last one.
     /// `None` when no frame qualified.
     speech_span: Option<(usize, usize)>,
@@ -319,7 +405,7 @@ struct VoiceActivity {
 /// relative to this recording's own noise floor. Silent frames contribute
 /// zero — which is exactly what we want when the user pauses between
 /// phrases.
-fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
+pub(crate) fn analyze_voice_activity(samples: &[f32], sample_rate: u32) -> VoiceActivity {
     let empty = VoiceActivity {
         speech_ms: 0,
         noise_floor: 0.0,

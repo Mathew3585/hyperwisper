@@ -5,6 +5,8 @@ use anyhow::Result;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
+use crate::whisper::Model;
+
 /// Serde default for opt-out booleans. Needed so a `settings.json` written by
 /// an older build — which has no such key — still deserialises, and lands on
 /// the feature being enabled rather than silently off.
@@ -36,6 +38,11 @@ pub struct Settings {
 
     /// Whisper transcription language. `"auto"` lets Whisper detect.
     pub language: String,
+
+    /// Whisper model the user last loaded. Restored at startup so picking a
+    /// model in Settings survives a restart. `None` = never chosen; the
+    /// startup loader then falls back to the best model on disk.
+    pub model: Option<Model>,
 
     /// When true, the global hotkey is released while a game or other
     /// fullscreen app is in the foreground, so the keystroke reaches that
@@ -94,6 +101,7 @@ impl Default for Settings {
             auto_paste: true,
             preserve_clipboard: false,
             language: "fr".to_string(),
+            model: None,
             game_mode: true,
             overlay_style: OverlayStyle::Fat,
             onboarding_completed: false,

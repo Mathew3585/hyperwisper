@@ -195,6 +195,10 @@ function recommendationText(model: Model, t: Dictionary): string {
       return reco.small;
     case "medium-q5_0":
       return reco.mediumQ5_0;
+    case "large-v3-turbo-q5_0":
+      return reco.largeV3TurboQ5_0;
+    case "large-v3-turbo-q8_0":
+      return reco.largeV3TurboQ8_0;
     case "large-v3-q5_0":
       return reco.largeV3Q5_0;
   }

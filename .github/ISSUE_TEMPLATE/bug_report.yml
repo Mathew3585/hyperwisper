@@ -50,7 +50,7 @@ body:
     id: model
     attributes:
       label: Whisper model
-      placeholder: small-q5_1
+      placeholder: large-v3-turbo-q5_0
 
   - type: input
     id: system

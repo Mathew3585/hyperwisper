@@ -150,15 +150,21 @@ sur HuggingFace et sont stockés dans `%APPDATA%\Hyperwisper\models\`.
 |---|---:|---|
 | `tiny-q5_1` | 32 Mo | Test rapide. Qualité approximative — à éviter au quotidien. |
 | `base-q5_1` | 60 Mo | Léger, pour PC modeste. Correct sur des phrases courtes et simples. |
-| **`small-q5_1`** | **190 Mo** | **★ Par défaut.** Le meilleur compromis qualité/vitesse, et le modèle embarqué dans l'installateur. |
+| `small-q5_1` | 190 Mo | Léger et rapide. Le meilleur choix sur une machine sans GPU exploitable. |
 | `small` | 488 Mo | Small non quantisé. Marginalement plus précis, 2,5× plus lourd. |
-| `medium-q5_0` | 539 Mo | Pour les longues dictées techniques. Demande un CPU ou GPU costaud. |
-| `large-v3-q5_0` | 1,08 Go | Précision maximale. Lent même en GPU — surdimensionné pour de la dictée. |
+| `medium-q5_0` | 539 Mo | Dépassé par Turbo, à la fois plus rapide et plus précis. |
+| **`large-v3-turbo-q5_0`** | **574 Mo** | **★ Par défaut.** La précision de large-v3 avec un décodeur à 4 couches : ~8× plus rapide que large-v3, nettement plus précis que Small. |
+| `large-v3-turbo-q8_0` | 874 Mo | Turbo moins quantisé. Un poil plus précis, 1,5× plus lourd. |
+| `large-v3-q5_0` | 1,08 Go | Le large-v3 d'origine. Turbo fait aussi bien en dictée, en bien moins de temps. |
+
+L'app mémorise le modèle chargé et le restaure au lancement suivant. Si le fichier a disparu,
+elle se rabat sur le meilleur modèle déjà présent sur le disque.
 
 > [!NOTE]
 > Les téléchargements sont écrits dans un fichier `.part` puis renommés atomiquement à la fin :
-> un téléchargement interrompu ne peut pas laisser un modèle corrompu en place. La vérification
-> d'empreinte n'est [pas encore implémentée](#limites-connues).
+> un téléchargement interrompu ne peut pas laisser un modèle corrompu en place. Chaque
+> téléchargement est vérifié contre l'empreinte SHA-256 publiée sur HuggingFace avant d'être
+> mis en place.
 
 ---
 
@@ -357,16 +363,6 @@ réglages, onboarding, installation et désinstallation.
 
 Autant être franc sur les aspérités, tu les trouveras de toute façon :
 
-- **La langue de transcription est codée en dur sur le français.** `Settings.language` est
-  persisté et typé des deux côtés, mais n'est pas encore transmis à `WhisperEngine::load`, et
-  aucun panneau de réglages ne l'expose. Changer le littéral dans `lib.rs` et `commands/mod.rs`
-  est un correctif de deux lignes ; le brancher proprement à l'UI est une excellente première
-  contribution.
-- **L'interface est uniquement en français.** Toutes les chaînes sont inline dans les TSX — pas
-  encore de couche i18n.
-- **Les modèles téléchargés ne sont pas vérifiés par empreinte.** `sha2` est déclaré en dépendance
-  et le catalogue mentionne SHA-256 en commentaire, mais l'étape de vérification n'est pas
-  implémentée.
 - **Modifier une entrée d'historique n'est pas persisté.** Le fichier d'historique est
   append-only par conception ; les modifications restent locales à la session.
 - **Windows uniquement.** macOS et Linux nécessiteraient de nouveaux backends de collage, de
@@ -377,10 +373,10 @@ Autant être franc sur les aspérités, tu les trouveras de toute façon :
 ### Roadmap
 
 - [ ] Binaires de release signés sur GitHub Releases
-- [ ] Sélection de la langue dans l'interface (et détection `auto`)
-- [ ] Interface en anglais + une couche i18n
+- [x] Sélection de la langue dans l'interface (et détection `auto`)
+- [x] Interface en anglais + une couche i18n
 - [ ] Vraies captures d'écran et GIF de démonstration dans ce README
-- [ ] Vérification SHA-256 des modèles téléchargés
+- [x] Vérification SHA-256 des modèles téléchargés
 - [ ] Vocabulaire personnalisé / dictionnaire de remplacement pour les noms propres et le jargon
 - [ ] Profils par application
 - [ ] Support macOS et Linux
@@ -393,9 +389,6 @@ Bons points d'entrée si tu veux contribuer — aucun ne demande de comprendre t
 
 | Tâche | Où | Difficulté |
 |---|---|---|
-| Traduire l'interface en anglais | `src/windows/**/*.tsx` | 🟢 Facile, fastidieux |
-| Exposer le choix de la langue dans les réglages | `GeneralPanel.tsx` + `whisper/engine.rs` | 🟢 Facile |
-| Vérification SHA-256 après téléchargement | `whisper/downloader.rs` | 🟡 Moyen |
 | Vocabulaire personnalisé via `set_initial_prompt` | `whisper/engine.rs` | 🟡 Moyen |
 | Backend collage + barre des tâches pour macOS | `paste/`, `tray.rs` | 🔴 Difficile |
 

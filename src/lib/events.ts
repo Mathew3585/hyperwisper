@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Model, HistoryEntry } from "./ipc";
+import type { Model, HistoryEntry, DictationMetrics } from "./ipc";
 
 export type RecordingState = "idle" | "recording" | "transcribing" | "done";
 
@@ -49,4 +49,15 @@ export const events = {
 
   onSettingsChanged: (handler: () => void): Promise<UnlistenFn> =>
     listen<unknown>("settings:changed", () => handler()),
+
+  /** Game mode suspended (true) or restored (false) the shortcut. */
+  onGameMode: (handler: (active: boolean) => void): Promise<UnlistenFn> =>
+    listen<boolean>("gamemode:active", (e) => handler(e.payload)),
+
+  /** Name of the device the "test every mic" sweep just switched to. */
+  onMicTestDevice: (handler: (device: string) => void): Promise<UnlistenFn> =>
+    listen<string>("mictest:device", (e) => handler(e.payload)),
+
+  onMetricsNew: (handler: (m: DictationMetrics) => void): Promise<UnlistenFn> =>
+    listen<DictationMetrics>("metrics:new", (e) => handler(e.payload)),
 };

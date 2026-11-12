@@ -6,7 +6,15 @@ use std::process::Command;
 ///
 /// We filter out virtual / display-redirect adapters (Parsec, Splashtop, etc.)
 /// so we report the *real* hardware.
+///
+/// Spawning PowerShell costs a few hundred ms and the answer can't change
+/// while the app runs, so it's computed once and cached.
 pub fn detect_gpu() -> Option<String> {
+    static GPU: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    GPU.get_or_init(query_gpu).clone()
+}
+
+fn query_gpu() -> Option<String> {
     #[cfg(windows)]
     {
         let output = Command::new("powershell")

@@ -1,0 +1,63 @@
+name: Build Windows
+
+# Builds the full app (Rust + whisper.cpp with Vulkan + front-end) on a
+# GitHub Windows runner and uploads Hyperwisper.exe as a downloadable
+# artifact. The exe is self-installing: run it on any Windows 10/11 PC and
+# it opens the installer screen.
+#
+# Run it by hand from the Actions tab ("Run workflow"), push a tag like
+# `v0.2.0`, or push to a `build/...` branch.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    # Any branch under build/ gets a downloadable exe — handy for testing a
+    # change before it lands on main.
+    branches: ["build/**"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      # Short target dir: ggml-vulkan's nested shader build blows past the
+      # 260-char MAX_PATH otherwise (same reason as src-tauri/.cargo/config.toml).
+      CARGO_TARGET_DIR: D:\h
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          cache: true
+          stripdown: true
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> D:\\h"
+
+      - name: Install front-end dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm tauri build --features gpu-vulkan --no-bundle
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hyperwisper-windows-x64
+          path: D:\h\release\*.exe
+          if-no-files-found: error

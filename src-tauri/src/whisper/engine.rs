@@ -25,8 +25,7 @@ const WARMUP_SAMPLES: usize = 16_000;
 
 /// Wraps a loaded `WhisperContext` (and its state) so we can transcribe
 /// without paying the model-load cost on every dictation. Holding the
-/// context across calls means typical latency = inference only (~1-3s for
-/// `small-q5_0` on a modern CPU).
+/// context across calls means typical latency = inference only.
 pub struct WhisperEngine {
     #[allow(dead_code)] // kept alive for `state`; inference goes through `state`
     ctx: WhisperContext,
@@ -36,19 +35,40 @@ pub struct WhisperEngine {
     /// `no_context(true)` means nothing is carried between runs anyway.
     state: Mutex<WhisperState>,
     model: Model,
-    language: Mutex<String>,
+    flash_attn: bool,
 }
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // language + duration surfaced to UI in Phase 6
+#[derive(Debug, Clone, Default)]
 pub struct TranscriptionResult {
     pub text: String,
-    pub language: String,
-    pub duration_ms: u64,
+    pub audio_ctx: i32,
+    pub n_tokens: u32,
+    /// Highest per-segment no-speech probability.
+    pub no_speech_prob: f32,
+    /// Language code Whisper used (detected when the setting is "auto").
+    pub detected_language: Option<String>,
+    /// Time spent waiting for the shared state — non-zero when a dictation
+    /// queued behind the warm-up or a previous transcription.
+    pub lock_wait_ms: f64,
+    /// Time inside whisper.cpp's `full()` (encoder + decoder).
+    pub full_ms: f64,
+    /// Words dropped by `collapse_repetitions`. Non-zero = the decoder
+    /// looped and the safety net caught it.
+    pub repeated_words: u32,
+}
+
+/// What one `full()` pass produced, before trailing-filler cleanup.
+struct RunOutput {
+    text: String,
+    n_tokens: u32,
+    no_speech_prob: f32,
+    detected_language: Option<String>,
+    lock_wait_ms: f64,
+    full_ms: f64,
 }
 
 impl WhisperEngine {
-    pub fn load(model_path: &Path, model: Model, language: &str) -> Result<Self> {
+    pub fn load(model_path: &Path, model: Model) -> Result<Self> {
         let path = model_path
             .to_str()
             .ok_or_else(|| anyhow!("non-UTF8 model path"))?;
@@ -86,7 +106,7 @@ impl WhisperEngine {
             ctx,
             state: Mutex::new(state),
             model,
-            language: Mutex::new(language.to_string()),
+            flash_attn,
         })
     }
 
@@ -114,30 +134,46 @@ impl WhisperEngine {
 
         // Full audio context on purpose: this is the widest graph a real
         // dictation can ask for, so warming it covers every shorter one.
-        match self.run(&samples, AUDIO_CTX_FULL) {
+        match self.run(&samples, AUDIO_CTX_FULL, "en") {
             Ok(_) => tracing::info!("Whisper warm-up completed in {:.2}s", started.elapsed().as_secs_f32()),
             Err(e) => tracing::warn!("Whisper warm-up failed ({e}); first dictation will be slow"),
         }
-    }
-
-    #[allow(dead_code)] // wired to settings UI in Phase 6
-    pub fn set_language(&self, lang: &str) {
-        *self.language.lock() = lang.to_string();
     }
 
     pub fn model(&self) -> Model {
         self.model
     }
 
-    /// Transcribe a buffer of 16 kHz mono f32 samples.
-    pub fn transcribe(&self, samples_16k_mono: &[f32]) -> Result<TranscriptionResult> {
+    pub fn flash_attn(&self) -> bool {
+        self.flash_attn
+    }
+
+    /// Transcribe a buffer of 16 kHz mono f32 samples. `language` is a
+    /// Whisper language code (`"fr"`, `"en"`…) or `"auto"` to detect it.
+    pub fn transcribe(&self, samples_16k_mono: &[f32], language: &str) -> Result<TranscriptionResult> {
         let started = Instant::now();
 
-        let audio_ctx = audio_ctx_for(samples_16k_mono.len());
-        let raw = self.run(samples_16k_mono, audio_ctx)?;
-        let text = strip_trailing_artifacts(&raw);
-        if text != raw {
-            tracing::info!("Stripped trailing artifact: {:?} → {:?}", raw, text);
+        let audio_ctx = if self.model.allows_audio_ctx_shrink() {
+            audio_ctx_for(samples_16k_mono.len())
+        } else {
+            AUDIO_CTX_FULL
+        };
+        let out = self.run(samples_16k_mono, audio_ctx, language)?;
+
+        // Safety net for decoder loops that slip past the temperature
+        // fallback: collapse runs of the same phrase down to one.
+        let (deduped, repeated_words) = collapse_repetitions(&out.text);
+        if repeated_words > 0 {
+            tracing::warn!(
+                "Collapsed a repetition loop ({} words removed, {} tokens decoded)",
+                repeated_words,
+                out.n_tokens
+            );
+        }
+
+        let text = strip_trailing_artifacts(&deduped);
+        if text != deduped {
+            tracing::info!("Stripped trailing artifact: {:?} → {:?}", deduped, text);
         }
         let elapsed = started.elapsed();
 
@@ -151,19 +187,25 @@ impl WhisperEngine {
 
         Ok(TranscriptionResult {
             text,
-            language: self.language.lock().clone(),
-            duration_ms: elapsed.as_millis() as u64,
+            audio_ctx,
+            n_tokens: out.n_tokens,
+            no_speech_prob: out.no_speech_prob,
+            detected_language: out.detected_language,
+            lock_wait_ms: out.lock_wait_ms,
+            full_ms: out.full_ms,
+            repeated_words,
         })
     }
 
-    /// Single inference against the shared state. Returns the concatenated
-    /// segment text.
-    fn run(&self, samples_16k_mono: &[f32], audio_ctx: i32) -> Result<String> {
+    /// Single inference against the shared state.
+    fn run(&self, samples_16k_mono: &[f32], audio_ctx: i32, language: &str) -> Result<RunOutput> {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         // Physical cores: SIMD/mat-mul workloads in whisper.cpp don't benefit
         // from SMT (hyperthreads) and often regress when both siblings of a
-        // core contend on the same FP units.
-        params.set_n_threads(num_cpus::get_physical().max(1) as i32);
+        // core contend on the same FP units. Capped at 8: past that the
+        // ggml thread barrier costs more than the extra cores bring, and
+        // with a GPU backend the CPU side is mostly orchestration anyway.
+        params.set_n_threads(num_cpus::get_physical().clamp(1, 8) as i32);
         params.set_translate(false);
         params.set_print_special(false);
         params.set_print_progress(false);
@@ -178,41 +220,62 @@ impl WhisperEngine {
         // ("[Musique]", "(rires)") and standalone punctuation that Whisper
         // learned from subtitle tracks and likes to emit over quiet audio.
         params.set_suppress_nst(true);
-        // Disable temperature fallback (greedy already + skip retry-on-uncertainty).
+        // Greedy at T=0 first. When a segment comes out degenerate — the
+        // decoder's token entropy collapses (a loop) or its average
+        // log-prob is poor — whisper.cpp re-decodes it at T+0.2, up to 1.0.
+        // This used to be disabled for speed, which left loops like
+        // "l'aplique, l'aplique, …" with no way out. It costs nothing on a
+        // clean decode; only failing segments pay for a retry.
         params.set_temperature(0.0);
-        params.set_temperature_inc(0.0);
+        params.set_temperature_inc(0.2);
+        params.set_entropy_thold(2.4);
+        params.set_logprob_thold(-1.0);
         params.set_token_timestamps(false);
+        // Timestamp tokens stay on (no `set_no_timestamps`): they're how the
+        // decoder segments and seeks, and turning them off made loops more
+        // likely for a negligible saving.
         params.set_audio_ctx(audio_ctx);
 
-        let lang_string;
-        let lang = {
-            let l = self.language.lock();
-            if l.as_str() == "auto" {
-                None
-            } else {
-                lang_string = l.clone();
-                Some(lang_string.as_str())
-            }
-        };
-        params.set_language(lang);
+        params.set_language(match language {
+            "" | "auto" => None,
+            code => Some(code),
+        });
 
+        let t_lock = Instant::now();
         let mut state = self.state.lock();
+        let lock_wait_ms = t_lock.elapsed().as_secs_f64() * 1000.0;
+
+        let t_full = Instant::now();
         state
             .full(params, samples_16k_mono)
             .map_err(|e| anyhow!("whisper full() failed: {e}"))?;
+        let full_ms = t_full.elapsed().as_secs_f64() * 1000.0;
 
         let n = state.full_n_segments();
         let mut text = String::new();
+        let mut n_tokens = 0u32;
+        let mut no_speech_prob = 0f32;
         for i in 0..n {
             if let Some(segment) = state.get_segment(i) {
+                n_tokens += segment.n_tokens().max(0) as u32;
+                no_speech_prob = no_speech_prob.max(segment.no_speech_probability());
                 match segment.to_str() {
                     Ok(s) => text.push_str(s),
                     Err(e) => tracing::warn!("segment {} decode error: {}", i, e),
                 }
             }
         }
+        let detected_language =
+            whisper_rs::get_lang_str(state.full_lang_id_from_state()).map(str::to_string);
 
-        Ok(text.trim().to_string())
+        Ok(RunOutput {
+            text: text.trim().to_string(),
+            n_tokens,
+            no_speech_prob,
+            detected_language,
+            lock_wait_ms,
+            full_ms,
+        })
     }
 }
 
@@ -224,6 +287,74 @@ fn audio_ctx_for(n_samples: usize) -> i32 {
     let seconds = n_samples as f32 / WHISPER_SAMPLE_RATE;
     let scaled = (seconds / 30.0 * AUDIO_CTX_FULL as f32 * AUDIO_CTX_MARGIN).ceil();
     (scaled as i32).clamp(AUDIO_CTX_MIN, AUDIO_CTX_FULL)
+}
+
+/// A phrase repeated this many times in a row is a decoder loop, not speech.
+/// Four keeps natural emphasis ("non non non", "très très très") intact.
+const LOOP_MIN_REPEATS: usize = 4;
+/// Longest repeated unit we look for, in words.
+const LOOP_MAX_UNIT: usize = 8;
+
+/// Collapse decoder loops: any run of the same 1–8 word phrase repeated
+/// `LOOP_MIN_REPEATS`+ times in a row is kept once. A truncated copy of the
+/// phrase at the very end ("…, l'aplique, l'a") is dropped with it.
+/// Returns the cleaned text and how many words were removed.
+fn collapse_repetitions(text: &str) -> (String, u32) {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    // Compare loosely: case and trailing punctuation differ between copies.
+    let norm: Vec<String> = words
+        .iter()
+        .map(|w| {
+            w.trim_matches(|c: char| c.is_ascii_punctuation() || c == '…')
+                .to_lowercase()
+        })
+        .collect();
+
+    let mut out: Vec<&str> = Vec::with_capacity(words.len());
+    let mut removed = 0u32;
+    let mut i = 0;
+    'scan: while i < words.len() {
+        for n in 1..=LOOP_MAX_UNIT {
+            if i + n * LOOP_MIN_REPEATS > words.len() {
+                break;
+            }
+            let unit = &norm[i..i + n];
+            let mut reps = 1;
+            while i + (reps + 1) * n <= words.len() && norm[i + reps * n..i + (reps + 1) * n] == *unit {
+                reps += 1;
+            }
+            if reps >= LOOP_MIN_REPEATS {
+                out.extend_from_slice(&words[i..i + n]);
+                let mut next = i + reps * n;
+                removed += ((reps - 1) * n) as u32;
+
+                // A cut-off copy of the unit trailing at the very end.
+                let tail = &norm[next..];
+                if !tail.is_empty()
+                    && tail.len() <= n
+                    && tail
+                        .iter()
+                        .zip(unit)
+                        .all(|(t, u)| u.starts_with(t.as_str()))
+                {
+                    removed += tail.len() as u32;
+                    next = words.len();
+                }
+                i = next;
+                continue 'scan;
+            }
+        }
+        out.push(words[i]);
+        i += 1;
+    }
+
+    if removed == 0 {
+        return (text.to_string(), 0);
+    }
+    // The kept copy usually ends in the loop's separator (a comma).
+    let joined = out.join(" ");
+    let cleaned = joined.trim_end_matches([',', ';', ' ']).to_string();
+    (cleaned, removed)
 }
 
 /// Subtitle-corpus filler Whisper emits over silence. Matched case-insensitively
@@ -328,6 +459,52 @@ mod tests {
         assert_eq!(audio_ctx_for(0), AUDIO_CTX_MIN);
     }
 
+    /// Verbatim (shortened) from the first Large v3 Turbo dictation on the
+    /// user's Scarlett — the loop that motivated `collapse_repetitions`.
+    #[test]
+    fn collapses_the_loop_seen_in_the_wild() {
+        let looped = format!(
+            "Ok, alors, du coup, je te faire, message, {}l'a",
+            "l'aplique, ".repeat(40)
+        );
+        let (out, removed) = collapse_repetitions(&looped);
+        assert_eq!(out, "Ok, alors, du coup, je te faire, message, l'aplique");
+        assert_eq!(removed, 40);
+    }
+
+    #[test]
+    fn collapses_multi_word_loops() {
+        let looped = format!("Bonjour. {}", "Merci d'avoir regardé. ".repeat(6));
+        let (out, removed) = collapse_repetitions(looped.trim());
+        assert_eq!(out, "Bonjour. Merci d'avoir regardé.");
+        assert_eq!(removed, 15);
+    }
+
+    /// Emphasis a person actually says must survive.
+    #[test]
+    fn keeps_natural_repetition() {
+        for s in [
+            "non non non, pas comme ça",
+            "c'est très très très bien",
+            "on teste, on teste, on teste encore",
+        ] {
+            assert_eq!(collapse_repetitions(s), (s.to_string(), 0), "{s}");
+        }
+    }
+
+    #[test]
+    fn repetition_check_handles_degenerate_text() {
+        assert_eq!(collapse_repetitions(""), (String::new(), 0));
+        assert_eq!(collapse_repetitions("a"), ("a".to_string(), 0));
+    }
+
+    #[test]
+    fn large_models_keep_the_full_window() {
+        assert!(!Model::LargeV3TurboQ5_0.allows_audio_ctx_shrink());
+        assert!(!Model::LargeV3Q5_0.allows_audio_ctx_shrink());
+        assert!(Model::SmallQ5_1.allows_audio_ctx_shrink());
+    }
+
     /// Verbatim from the user's history.jsonl.
     #[test]
     fn strips_the_trailing_ellipsis_seen_in_the_wild() {
@@ -408,13 +585,13 @@ mod tests {
     #[test]
     #[ignore = "requires the downloaded model; run manually"]
     fn warm_up_flattens_first_run_latency() {
-        let path = crate::whisper::models::model_path(Model::SmallQ5_1).unwrap();
+        let path = crate::whisper::models::model_path(Model::default()).unwrap();
         if !path.exists() {
             panic!("model not found at {} — download it first", path.display());
         }
 
         let t_load = Instant::now();
-        let engine = WhisperEngine::load(&path, Model::SmallQ5_1, "fr").unwrap();
+        let engine = WhisperEngine::load(&path, Model::default()).unwrap();
         let load_ms = t_load.elapsed().as_millis();
 
         // Mirrors what the app does: publish, then warm up off-thread.
@@ -427,11 +604,11 @@ mod tests {
             .collect();
 
         let t1 = Instant::now();
-        engine.transcribe(&clip).unwrap();
+        engine.transcribe(&clip, "fr").unwrap();
         let first_ms = t1.elapsed().as_millis();
 
         let t2 = Instant::now();
-        engine.transcribe(&clip).unwrap();
+        engine.transcribe(&clip, "fr").unwrap();
         let second_ms = t2.elapsed().as_millis();
 
         println!(

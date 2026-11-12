@@ -10,6 +10,7 @@ import {
 import { PanelHeader, SectionLabel } from "./common";
 import { Toggle } from "./toggle";
 import { LanguageSection } from "./LanguageSection";
+import { TranscriptionLanguageSection } from "./TranscriptionLanguageSection";
 import { HotkeyEditor, KeyChip } from "./HotkeyEditor";
 import { useT } from "@/i18n";
 
@@ -79,6 +80,11 @@ export function SettingsPanel() {
       {/* Language — first, because it is the one setting that makes every
           other screen readable. */}
       <LanguageSection />
+
+      <TranscriptionLanguageSection
+        value={settings.language}
+        onChange={(code) => updateSetting("language", code)}
+      />
 
       {/* Shortcut */}
       <section className="space-y-3">

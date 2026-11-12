@@ -21,11 +21,9 @@ straight into whatever window has focus. No cloud. No account. No subscription. 
 
 </div>
 
-> [!IMPORTANT]
-> **The app's interface is currently French-only**, and the Whisper engine is loaded with
-> French as its transcription language. Everything else — code, comments, docs — is English,
-> and the strings live in ordinary TSX files, so translating is a mechanical job.
-> See [Help wanted](#help-wanted) if you'd like to take it on.
+> [!NOTE]
+> The interface ships in English, French, Spanish, German and Portuguese, and the dictation
+> language is picked separately in **Settings** — French by default, or auto-detect.
 
 ---
 
@@ -150,15 +148,20 @@ HuggingFace and stored in `%APPDATA%\Hyperwisper\models\`.
 |---|---:|---|
 | `tiny-q5_1` | 32 MB | Fast smoke test. Quality is rough — not for daily use. |
 | `base-q5_1` | 60 MB | Light enough for modest hardware. OK on short, simple sentences. |
-| **`small-q5_1`** | **190 MB** | **★ Default.** The best quality/speed trade-off, and what ships with the installer. |
+| `small-q5_1` | 190 MB | Light and fast. The best pick on a machine without a usable GPU. |
 | `small` | 488 MB | Unquantized Small. Marginally more accurate, 2.5× heavier. |
-| `medium-q5_0` | 539 MB | For long technical dictations. Wants a strong CPU or GPU. |
-| `large-v3-q5_0` | 1.08 GB | Maximum accuracy. Slow even on GPU — overkill for dictation. |
+| `medium-q5_0` | 539 MB | Superseded by Turbo, which is both faster and more accurate. |
+| **`large-v3-turbo-q5_0`** | **574 MB** | **★ Default.** large-v3 accuracy with a 4-layer decoder: ~8× faster than large-v3, far more accurate than Small. |
+| `large-v3-turbo-q8_0` | 874 MB | Turbo with lighter quantization. A hair more accurate, 1.5× heavier. |
+| `large-v3-q5_0` | 1.08 GB | The original large-v3. Turbo matches it for dictation at a fraction of the time. |
+
+The app remembers the model you load and restores it at the next launch. If that file is gone,
+it falls back to the best model already on disk.
 
 > [!NOTE]
 > Downloads are streamed to a `.part` file and atomically renamed on completion, so an
-> interrupted download can't leave a corrupt model in place. Checksum verification is
-> [not yet implemented](#known-gaps).
+> interrupted download can't leave a corrupt model in place. Every download is checked against
+> the SHA-256 published on HuggingFace before it is renamed into place.
 
 ---
 
@@ -351,13 +354,6 @@ hotkey, capture, VAD, transcription, paste, history, settings, onboarding, insta
 
 Being upfront about the rough edges, because you'll find them anyway:
 
-- **The transcription language is hardcoded to French.** `Settings.language` is persisted and
-  typed on both sides, but it isn't threaded into `WhisperEngine::load` yet, and no settings
-  panel exposes it. Changing the literal in `lib.rs` and `commands/mod.rs` is a two-line fix;
-  wiring it to the UI properly is a good first contribution.
-- **The UI is French-only.** All strings are inline in TSX — no i18n framework yet.
-- **Downloaded models aren't checksum-verified.** `sha2` is a declared dependency and the model
-  catalog has a comment about SHA-256, but the verification step isn't implemented.
 - **Editing a history entry doesn't persist.** The history file is append-only by design; edits
   are local to the session.
 - **Windows only.** macOS and Linux would need new paste, tray and installer backends.
@@ -366,10 +362,10 @@ Being upfront about the rough edges, because you'll find them anyway:
 ### Roadmap
 
 - [ ] Signed release binaries on GitHub Releases
-- [ ] Language selection in the UI (and `auto` detection)
-- [ ] English UI + an i18n layer
+- [x] Language selection in the UI (and `auto` detection)
+- [x] English UI + an i18n layer
 - [ ] Real screenshots and a demo GIF in this README
-- [ ] SHA-256 verification of downloaded models
+- [x] SHA-256 verification of downloaded models
 - [ ] Custom vocabulary / replacement dictionary for names and jargon
 - [ ] Per-application profiles
 - [ ] macOS and Linux support
@@ -383,9 +379,6 @@ codebase:
 
 | Task | Where | Difficulty |
 |---|---|---|
-| Translate the UI to English | `src/windows/**/*.tsx` | 🟢 Easy, tedious |
-| Expose language selection in Settings | `GeneralPanel.tsx` + `whisper/engine.rs` | 🟢 Easy |
-| SHA-256 verification after download | `whisper/downloader.rs` | 🟡 Medium |
 | Custom vocabulary via `set_initial_prompt` | `whisper/engine.rs` | 🟡 Medium |
 | macOS paste + tray backend | `paste/`, `tray.rs` | 🔴 Hard |
 

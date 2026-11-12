@@ -36,6 +36,7 @@ export const pt: Dictionary = {
     settings: "Configurações",
     history: "Histórico",
     about: "Sobre",
+    diagnostics: "Diagnóstico",
   },
 
   sidebar: {
@@ -130,6 +131,102 @@ export const pt: Dictionary = {
     },
   },
 
+
+  diagnostics: {
+    title: "Diagnóstico",
+    description:
+      "Tudo o que o Hyperwisper mede sobre o seu microfone e cada ditado — salvo apenas neste PC.",
+    gameModePaused: (app: string | null) =>
+      ((app: string) => `Modo jogo: o atalho fica pausado enquanto ${app} está em tela cheia, para a tecla chegar ao jogo. Ele volta sozinho — ou desative o modo jogo em Configurações.`)(app || "um app em tela cheia"),
+    mic: {
+      label: "Microfone",
+      test: (seconds: number) => `Testar ${seconds} s`,
+      testing: (seconds: number) => `Fale normalmente… ${seconds} s`,
+      hint: "Fale como quando dita. O teste mostra o que cada entrada do seu dispositivo realmente recebe.",
+      format: (channels: number, rate: number, fmt: string) =>
+        `${channels} canais · ${rate} Hz · ${fmt}`,
+      channel: (n: number) => `Entrada ${n}`,
+      used: "usada",
+      ignored: "ignorada",
+      peak: "pico",
+      rms: "nível",
+      speech: (ms: number) => `${(ms / 1000).toFixed(1)} s de voz detectada`,
+      snr: (db: string) => `sinal/ruído ${db} dB`,
+      start: "início",
+      testAll: "Testar todos os microfones",
+      testingDevice: (name: string) => `Testando ${name}…`,
+      testAllHint: "Fale sem parar: cada microfone é gravado por 3 s, um de cada vez.",
+      useThis: "Usar este microfone",
+      inUse: "Em uso",
+      openFailed: "Não foi possível abrir este microfone",
+      supported: "Formatos oferecidos pelo dispositivo",
+      verdict: {
+        ok: "Sinal limpo — esta entrada funciona bem para ditado.",
+        noSignal: "Nenhum sinal. Verifique o cabo, a entrada escolhida no Windows ou o 48V/ganho da interface.",
+        noVoice: "Há som, mas nenhuma voz foi detectada. Fale durante o teste ou aumente o ganho.",
+        lowGain: "Sua voz chega bem baixa. Funciona, mas subir um pouco o ganho melhora a precisão.",
+        clipping: "O sinal está saturando (halo vermelho na interface). Baixe um pouco o ganho.",
+        channelsIgnored: "Entradas vazias são ignoradas automaticamente — só a que leva sua voz é usada.",
+        bluetooth:
+          "Fone Bluetooth no modo viva-voz: qualidade de telefone (16 kHz), e a primeira palavra pode ser cortada na troca de modo. Prefira um microfone com fio para ditar.",
+        slowStart:
+          "Este microfone demora para iniciar — as primeiras palavras podem se perder. Faça uma pequena pausa após o atalho.",
+      },
+    },
+    perf: {
+      label: "Desempenho",
+      empty: "Nenhum ditado medido ainda. Faça alguns e volte aqui.",
+      count: "Ditados",
+      median: "Latência mediana",
+      p95: "Latência p95",
+      inference: "Whisper (mediana)",
+      rtf: "Velocidade",
+      rtfValue: (x: string) => `${x}× tempo real`,
+      success: "Taxa de sucesso",
+      breakdown: "Para onde vai o tempo (média)",
+      stage: {
+        stop: "Parada",
+        vad: "Detecção de voz",
+        resample: "Reamostragem",
+        wait: "Espera do modelo",
+        inference: "Whisper",
+        paste: "Colagem",
+      },
+      recent: "Últimos ditados",
+      col: {
+        when: "Quando",
+        audio: "Áudio",
+        total: "Total",
+        whisper: "Whisper",
+        outcome: "Resultado",
+      },
+      outcome: {
+        pasted: "Colado",
+        clipboard: "Área de transferência",
+        tooShort: "Curto demais",
+        noVoice: "Sem voz",
+        empty: "Vazio",
+        error: "Erro",
+      },
+    },
+    system: {
+      label: "Sistema",
+      model: "Modelo",
+      gpu: "GPU",
+      backend: "Backend",
+      flashAttn: "Flash attention",
+      threads: "Threads de CPU",
+      version: "Versão",
+      none: "—",
+      yes: "ativado",
+      no: "desativado",
+    },
+    actions: {
+      copy: "Copiar o relatório completo",
+      copied: "Relatório copiado",
+      clear: "Apagar as medições",
+    },
+  },
   tray: {
     open: "Abrir o Hyperwisper",
     status: (combo: string) => `Escutando — ${combo}`,
@@ -201,13 +298,17 @@ export const pt: Dictionary = {
           "Teste rápido, qualidade tosca. Não serve para o dia a dia.",
         baseQ5_1:
           "Leve o bastante para hardware modesto. Bom para frases curtas e simples.",
-        smallQ5_1: "★ Recomendado. O melhor equilíbrio entre qualidade e velocidade.",
+        smallQ5_1: "Leve e rápido. A melhor escolha em máquinas sem GPU.",
         small:
           "Small sem quantização. Um pouco mais preciso, 2,5× mais pesado.",
         mediumQ5_0:
           "Para ditados técnicos longos. Pede uma CPU forte.",
+        largeV3TurboQ5_0:
+          "★ Recomendado. A precisão do large-v3 por uma fração do custo — rápido na GPU.",
+        largeV3TurboQ8_0:
+          "Turbo com menos quantização. Um pouco mais preciso, 1,5× mais pesado.",
         largeV3Q5_0:
-          "Precisão máxima. Lento até com GPU, exagero para ditado.",
+          "O large-v3 original. O Turbo rende igual no ditado, em bem menos tempo.",
       },
     },
 
@@ -413,7 +514,7 @@ export const pt: Dictionary = {
     model: {
       title: "O modelo de transcrição",
       description:
-        "O Whisper Small oferece o melhor equilíbrio entre qualidade e velocidade. Você pode testar outros depois, em Modelos.",
+        "O Whisper Large v3 Turbo oferece o melhor equilíbrio entre qualidade e velocidade. Você pode testar outros depois, em Modelos.",
       sizeAndEta: (sizeMb: number) =>
         `${sizeMb} MB · cerca de um minuto para baixar`,
       unavailable: "Indisponível",
@@ -517,7 +618,7 @@ export const pt: Dictionary = {
       copySublabel: "Instala o binário e registra a entrada de desinstalação",
       modelLabel: "Baixando o modelo Whisper",
       modelSublabel: (sizeMb: number) =>
-        `Modelo Small Q5_1 — cerca de ${sizeMb} MB`,
+        `Modelo Large v3 Turbo — cerca de ${sizeMb} MB`,
       modelProgress: (doneMb: string, totalMb: string, pct: string) =>
         `${doneMb} / ${totalMb} MB · ${pct}%`,
       finalizeLabel: "Criando atalhos",

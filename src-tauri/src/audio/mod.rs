@@ -1,5 +1,6 @@
+pub mod channels;
 pub mod recorder;
 pub mod resampler;
 
-pub use recorder::{default_input_name, list_input_devices, AudioRecorder};
+pub use recorder::{default_input_name, list_input_devices, AudioRecorder, Capture, CaptureFormat};
 pub use resampler::resample_mono;

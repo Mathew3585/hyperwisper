@@ -8,6 +8,7 @@ import { events } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/datetime";
 import { useI18n, type Dictionary } from "@/i18n";
 import { SectionLabel, Kbd } from "./common";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 
 type StatusLevel = "ok" | "warn" | "error";
 
@@ -44,7 +45,7 @@ interface GeneralPanelProps {
   onNavigate: (panelId: string) => void;
 }
 
-export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
+export function GeneralPanel({ onNavigate }: GeneralPanelProps) {
   const { t, intlLocale } = useI18n();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -52,16 +53,16 @@ export function GeneralPanel({ modelLoaded, onNavigate }: GeneralPanelProps) {
   useEffect(() => {
     refresh();
     api.getHistory().then(setHistory);
+  }, []);
 
-    const unsubs: Array<() => void> = [];
-    events.onHistoryNew(() => api.getHistory().then(setHistory)).then((u) => unsubs.push(u));
-    // The model load happens asynchronously after app start — refresh the
-    // status panel as soon as Rust signals the model is ready so the GPU
-    // acceleration line flips from "loading" to the active-GPU string without
-    // a manual tab swap.
-    events.onModelLoaded(() => refresh()).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((u) => u());
-  }, [modelLoaded]);
+  // The event already carries the new entry — prepend it instead of
+  // re-reading the whole history file after every dictation.
+  useTauriEvent(events.onHistoryNew, (entry) => setHistory((h) => [entry, ...h]));
+  // The model load happens asynchronously after app start — refresh the
+  // status panel as soon as Rust signals the model is ready so the GPU
+  // acceleration line flips from "loading" to the active-GPU string without
+  // a manual tab swap.
+  useTauriEvent(events.onModelLoaded, () => refresh());
 
   async function refresh() {
     try {

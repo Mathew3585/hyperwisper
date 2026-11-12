@@ -37,6 +37,7 @@ export const es: Dictionary = {
     settings: "Ajustes",
     history: "Historial",
     about: "Acerca de",
+    diagnostics: "Diagnóstico",
   },
 
   sidebar: {
@@ -131,6 +132,102 @@ export const es: Dictionary = {
     },
   },
 
+
+  diagnostics: {
+    title: "Diagnóstico",
+    description:
+      "Todo lo que Hyperwisper mide sobre tu micrófono y cada dictado — guardado solo en este PC.",
+    gameModePaused: (app: string | null) =>
+      ((app: string) => `Modo juego: el atajo está en pausa mientras ${app} está a pantalla completa, para que la tecla llegue al juego. Vuelve solo — o desactiva el modo juego en Ajustes.`)(app || "una app a pantalla completa"),
+    mic: {
+      label: "Micrófono",
+      test: (seconds: number) => `Probar ${seconds} s`,
+      testing: (seconds: number) => `Habla con normalidad… ${seconds} s`,
+      hint: "Habla como cuando dictas. La prueba muestra lo que recibe realmente cada entrada de tu dispositivo.",
+      format: (channels: number, rate: number, fmt: string) =>
+        `${channels} canales · ${rate} Hz · ${fmt}`,
+      channel: (n: number) => `Entrada ${n}`,
+      used: "usada",
+      ignored: "ignorada",
+      peak: "pico",
+      rms: "nivel",
+      speech: (ms: number) => `${(ms / 1000).toFixed(1)} s de voz detectada`,
+      snr: (db: string) => `señal/ruido ${db} dB`,
+      start: "arranque",
+      testAll: "Probar todos los micrófonos",
+      testingDevice: (name: string) => `Probando ${name}…`,
+      testAllHint: "Habla sin parar: cada micrófono se graba 3 s por turnos.",
+      useThis: "Usar este micrófono",
+      inUse: "En uso",
+      openFailed: "No se pudo abrir este micrófono",
+      supported: "Formatos que ofrece el dispositivo",
+      verdict: {
+        ok: "Señal limpia — esta entrada funciona bien para dictar.",
+        noSignal: "No hay señal. Revisa el cable, la entrada elegida en Windows o el 48V/ganancia de tu interfaz.",
+        noVoice: "Entra sonido, pero no se detecta voz. Habla durante la prueba o sube la ganancia.",
+        lowGain: "Tu voz llega bastante baja. Funciona, pero subir un poco la ganancia mejora la precisión.",
+        clipping: "La señal satura (halo rojo en la interfaz). Baja un poco la ganancia.",
+        channelsIgnored: "Las entradas vacías se ignoran automáticamente — solo se usa la que lleva tu voz.",
+        bluetooth:
+          "Auriculares Bluetooth en modo manos libres: calidad de teléfono (16 kHz), y la primera palabra puede cortarse al cambiar de modo. Mejor un micrófono con cable para dictar.",
+        slowStart:
+          "Este micrófono tarda en arrancar — las primeras palabras pueden perderse. Haz una pequeña pausa tras el atajo.",
+      },
+    },
+    perf: {
+      label: "Rendimiento",
+      empty: "Aún no hay dictados medidos. Haz algunos y vuelve aquí.",
+      count: "Dictados",
+      median: "Latencia mediana",
+      p95: "Latencia p95",
+      inference: "Whisper (mediana)",
+      rtf: "Velocidad",
+      rtfValue: (x: string) => `${x}× tiempo real`,
+      success: "Tasa de éxito",
+      breakdown: "En qué se va el tiempo (media)",
+      stage: {
+        stop: "Parada",
+        vad: "Detección de voz",
+        resample: "Remuestreo",
+        wait: "Espera del modelo",
+        inference: "Whisper",
+        paste: "Pegado",
+      },
+      recent: "Últimos dictados",
+      col: {
+        when: "Cuándo",
+        audio: "Audio",
+        total: "Total",
+        whisper: "Whisper",
+        outcome: "Resultado",
+      },
+      outcome: {
+        pasted: "Pegado",
+        clipboard: "Portapapeles",
+        tooShort: "Muy corto",
+        noVoice: "Sin voz",
+        empty: "Vacío",
+        error: "Error",
+      },
+    },
+    system: {
+      label: "Sistema",
+      model: "Modelo",
+      gpu: "GPU",
+      backend: "Backend",
+      flashAttn: "Flash attention",
+      threads: "Hilos de CPU",
+      version: "Versión",
+      none: "—",
+      yes: "activado",
+      no: "desactivado",
+    },
+    actions: {
+      copy: "Copiar el informe completo",
+      copied: "Informe copiado",
+      clear: "Borrar las mediciones",
+    },
+  },
   tray: {
     open: "Abrir Hyperwisper",
     status: (combo: string) => `A la escucha — ${combo}`,
@@ -202,11 +299,15 @@ export const es: Dictionary = {
           "Prueba rápida, calidad tosca. No sirve para dictar a diario.",
         baseQ5_1:
           "Ligero para equipos modestos. Vale para frases cortas y sencillas.",
-        smallQ5_1: "★ Recomendado. El mejor equilibrio entre calidad y rapidez.",
+        smallQ5_1: "Ligero y rápido. La mejor opción en un equipo sin GPU.",
         small: "Small sin cuantizar. Un poco más preciso, 2,5× más pesado.",
         mediumQ5_0: "Para dictados técnicos largos. Pide una CPU potente.",
+        largeV3TurboQ5_0:
+          "★ Recomendado. La precisión de large-v3 por una fracción del coste — rápido con GPU.",
+        largeV3TurboQ8_0:
+          "Turbo con menos cuantización. Un poco más preciso, 1,5× más pesado.",
         largeV3Q5_0:
-          "Precisión máxima. Lento incluso con GPU, excesivo para dictar.",
+          "El large-v3 original. Turbo rinde igual al dictar, en mucho menos tiempo.",
       },
     },
 
@@ -411,7 +512,7 @@ export const es: Dictionary = {
     model: {
       title: "El modelo de transcripción",
       description:
-        "Whisper Small ofrece el mejor equilibrio entre calidad y rapidez. Puedes probar otros más adelante en Modelos.",
+        "Whisper Large v3 Turbo ofrece el mejor equilibrio entre calidad y rapidez. Puedes probar otros más adelante en Modelos.",
       sizeAndEta: (sizeMb: number) =>
         `${sizeMb} MB · alrededor de un minuto de descarga`,
       unavailable: "No disponible",
@@ -517,7 +618,7 @@ export const es: Dictionary = {
         "Coloca el ejecutable y registra la entrada de desinstalación",
       modelLabel: "Descargando el modelo Whisper",
       modelSublabel: (sizeMb: number) =>
-        `Modelo Small Q5_1 — unos ${sizeMb} MB`,
+        `Modelo Large v3 Turbo — unos ${sizeMb} MB`,
       modelProgress: (doneMb: string, totalMb: string, pct: string) =>
         `${doneMb} / ${totalMb} MB · ${pct} %`,
       finalizeLabel: "Creando accesos directos",

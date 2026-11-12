@@ -13,7 +13,15 @@ import {
   Languages,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { api, type AppSettings, type Model, type ModelStatus } from "@/lib/ipc";
+import {
+  api,
+  RECOMMENDED_FILENAME,
+  RECOMMENDED_MODEL,
+  type AppSettings,
+  type Model,
+  type ModelStatus,
+} from "@/lib/ipc";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 import { events, type DownloadProgress } from "@/lib/events";
 import { UI_LOCALES, useI18n, useT, type UiLocale } from "@/i18n";
 import { HotkeyEditor } from "../panels/HotkeyEditor";
@@ -41,12 +49,6 @@ const STEPS: StepId[] = [
   "launch",
   "done",
 ];
-const RECOMMENDED_MODEL: Model = "small-q5_1";
-// We match the model by filename rather than enum string because the
-// `kebab-case` serde transform on the Rust side is not perfectly predictable
-// (e.g. `SmallQ5_1` can render as `small-q5-1` instead of `small-q5_1`).
-// The filename is hardcoded in Rust, so it never drifts.
-const RECOMMENDED_FILENAME = "ggml-small-q5_1.bin";
 // Single source of truth for the mic test: the API call and the copy that
 // tells the user how long to speak both read from this, so they cannot drift.
 const TEST_DURATION_MS = 3000;
@@ -317,13 +319,18 @@ function MicStep({
     peakRef.current = 0;
     setTesting(true);
     setTested(false);
+    let voiceDetected = false;
     try {
-      await api.testMicrophone(TEST_DURATION_MS);
+      const report = await api.testMicrophone(TEST_DURATION_MS);
+      // The backend's VAD is the real test — it's what decides whether a
+      // dictation gets transcribed. The live meter alone used to fail quiet
+      // interfaces (Scarlett at low gain) that work perfectly well.
+      voiceDetected = report.speechMs >= 150;
     } catch (err) {
       console.error("test_microphone failed:", err);
     } finally {
       setTesting(false);
-      setTested(peakRef.current > 0.05);
+      setTested(voiceDetected || peakRef.current > 0.05);
       setLevel(0);
     }
   }
@@ -483,15 +490,11 @@ function ModelStep({ onNext, onBack }: { onNext: () => void; onBack: () => void 
 
   useEffect(() => {
     refresh();
-    const unsubs: Array<() => void> = [];
-    events
-      .onModelProgress((p) => {
-        if (p.model === RECOMMENDED_FILENAME) setProgress(p);
-      })
-      .then((u) => unsubs.push(u));
-    events.onModelLoaded(() => refresh()).then((u) => unsubs.push(u));
-    return () => unsubs.forEach((u) => u());
   }, []);
+  useTauriEvent(events.onModelProgress, (p) => {
+    if (p.model === RECOMMENDED_FILENAME) setProgress(p);
+  });
+  useTauriEvent(events.onModelLoaded, () => refresh());
 
   async function refresh() {
     setListLoading(true);

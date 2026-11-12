@@ -6,7 +6,7 @@
 
 <!--
 There's no automated test suite yet, so manual steps matter. For example:
-- Model: small-q5_1, Vulkan, toggle mode
+- Model: large-v3-turbo-q5_0, Vulkan, toggle mode
 - Dictated a 20 s sentence into VS Code → pasted correctly
 - Checked the overlay in both fat and thin styles
 -->

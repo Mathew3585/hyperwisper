@@ -106,6 +106,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     storeLocale(next);
   }, []);
 
+  // Follow changes made in another window. The settings and overlay
+  // webviews share localStorage, and `storage` fires in every window except
+  // the one that wrote — without this the overlay kept the language it was
+  // started with until the app restarted.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue && isUiLocale(e.newValue)) {
+        setLocaleState(e.newValue);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   // Keep <html lang> in sync so the webview hyphenates and spell-checks
   // against the right language.
   useEffect(() => {

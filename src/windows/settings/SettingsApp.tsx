@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
   History,
   Info,
+  Activity,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type AppSettings, type Model, type ModelStatus } from "@/lib/ipc";
@@ -15,14 +16,16 @@ import { Sidebar, type NavItem } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { useT, type Dictionary } from "@/i18n";
 import { useTrayLabels } from "@/lib/useTrayLabels";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 import { GeneralPanel } from "./panels/GeneralPanel";
 import { ModelsPanel } from "./panels/ModelsPanel";
 import { SettingsPanel } from "./panels/SettingsPanel";
 import { HistoryPanel } from "./panels/HistoryPanel";
 import { AboutPanel } from "./panels/AboutPanel";
+import { DiagnosticsPanel } from "./panels/DiagnosticsPanel";
 import { OnboardingWizard } from "./onboarding/OnboardingWizard";
 
-type PanelId = "home" | "models" | "settings" | "history" | "about";
+type PanelId = "home" | "models" | "settings" | "history" | "diagnostics" | "about";
 
 /**
  * Built from the live dictionary rather than a module-level const: evaluated
@@ -35,6 +38,7 @@ function buildNav(t: Dictionary): NavItem[] {
     { id: "models", label: t.nav.models, icon: Cpu },
     { id: "settings", label: t.nav.settings, icon: SlidersHorizontal },
     { id: "history", label: t.nav.history, icon: History },
+    { id: "diagnostics", label: t.nav.diagnostics, icon: Activity },
     { id: "about", label: t.nav.about, icon: Info },
   ];
 }
@@ -56,27 +60,24 @@ export function SettingsApp() {
 
   useEffect(() => {
     api.getSettings().then(setSettings);
-
-    const unsubs: Array<() => void> = [];
-    events
-      .onModelProgress((p) => {
-        setProgress((prev) => ({ ...prev, [p.model]: p }));
-      })
-      .then((u) => unsubs.push(u));
-    events
-      .onModelLoaded(async () => {
-        setModelLoaded(true);
-        setLoadError(null);
-        await refreshModels();
-      })
-      .then((u) => unsubs.push(u));
-    events.onModelLoadError((err) => setLoadError(err)).then((u) => unsubs.push(u));
-
     refreshModels();
     api.isModelLoaded().then(setModelLoaded);
-
-    return () => unsubs.forEach((u) => u());
   }, []);
+
+  // SettingsPanel saves through its own copy of the settings; follow the
+  // backend's broadcast so the tray label picks up a new hotkey.
+  useTauriEvent(events.onSettingsChanged, () => {
+    api.getSettings().then(setSettings).catch(() => {});
+  });
+  useTauriEvent(events.onModelProgress, (p) => {
+    setProgress((prev) => ({ ...prev, [p.model]: p }));
+  });
+  useTauriEvent(events.onModelLoaded, () => {
+    setModelLoaded(true);
+    setLoadError(null);
+    refreshModels();
+  });
+  useTauriEvent(events.onModelLoadError, (err) => setLoadError(err));
 
   function changeTheme(next: Theme) {
     setTheme(next);
@@ -197,6 +198,7 @@ export function SettingsApp() {
                 )}
                 {panel === "settings" && <SettingsPanel />}
                 {panel === "history" && <HistoryPanel />}
+                {panel === "diagnostics" && <DiagnosticsPanel />}
                 {panel === "about" && <AboutPanel />}
               </motion.div>
             </AnimatePresence>

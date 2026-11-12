@@ -47,6 +47,7 @@ export const en = {
     settings: "Settings",
     history: "History",
     about: "About",
+    diagnostics: "Diagnostics",
   },
 
   sidebar: {
@@ -159,6 +160,102 @@ export const en = {
    * Windows tray menu. Rust owns no dictionary — the front-end sends these
    * down through `set_tray_labels` on mount and on every language change.
    */
+
+  diagnostics: {
+    title: "Diagnostics",
+    description:
+      "Everything Hyperwisper measures about your mic and each dictation — stored only on this PC.",
+    gameModePaused: (app: string | null) =>
+      ((app: string) => `Game mode: the shortcut is paused while ${app} is fullscreen, so the key reaches the game. It comes back on its own — or turn game mode off in Settings.`)(app || "a fullscreen app"),
+    mic: {
+      label: "Microphone",
+      test: (seconds: number) => `Test for ${seconds} s`,
+      testing: (seconds: number) => `Speak normally… ${seconds} s`,
+      hint: "Speak the way you dictate. The test shows what each input of your device actually receives.",
+      format: (channels: number, rate: number, fmt: string) =>
+        `${channels} ch · ${rate} Hz · ${fmt}`,
+      channel: (n: number) => `Input ${n}`,
+      used: "used",
+      ignored: "ignored",
+      peak: "peak",
+      rms: "level",
+      speech: (ms: number) => `${(ms / 1000).toFixed(1)} s of speech detected`,
+      snr: (db: string) => `signal/noise ${db} dB`,
+      start: "start",
+      testAll: "Test every mic",
+      testingDevice: (name: string) => `Testing ${name}…`,
+      testAllHint: "Talk continuously: each mic is recorded for 3 s in turn.",
+      useThis: "Use this mic",
+      inUse: "In use",
+      openFailed: "Couldn't open this mic",
+      supported: "Formats the device offers",
+      verdict: {
+        ok: "Clean signal — this input works well for dictation.",
+        noSignal: "No signal at all. Check the cable, the input selected in Windows, or the 48V/gain on your interface.",
+        noVoice: "Sound came through, but no speech was detected. Speak during the test or raise the gain.",
+        lowGain: "Your voice is quite quiet. It works, but turning the gain up a notch improves accuracy.",
+        clipping: "The signal clips (red halo on the interface). Lower the gain a little.",
+        channelsIgnored: "Empty inputs are ignored automatically — only the one carrying your voice is used.",
+        bluetooth:
+          "Bluetooth headset in hands-free mode: 16 kHz phone quality, and the first word can be cut while it switches mode. Prefer a wired mic for dictation.",
+        slowStart:
+          "This mic takes a while to start — the first words may be lost. Pause a beat after the shortcut.",
+      },
+    },
+    perf: {
+      label: "Performance",
+      empty: "No dictations measured yet. Make a few, then come back.",
+      count: "Dictations",
+      median: "Median latency",
+      p95: "p95 latency",
+      inference: "Median Whisper time",
+      rtf: "Speed",
+      rtfValue: (x: string) => `${x}× real time`,
+      success: "Success rate",
+      breakdown: "Where the time goes (average)",
+      stage: {
+        stop: "Stop",
+        vad: "Voice detection",
+        resample: "Resampling",
+        wait: "Waiting for model",
+        inference: "Whisper",
+        paste: "Paste",
+      },
+      recent: "Latest dictations",
+      col: {
+        when: "When",
+        audio: "Audio",
+        total: "Total",
+        whisper: "Whisper",
+        outcome: "Result",
+      },
+      outcome: {
+        pasted: "Pasted",
+        clipboard: "Clipboard",
+        tooShort: "Too short",
+        noVoice: "No voice",
+        empty: "Empty",
+        error: "Error",
+      },
+    },
+    system: {
+      label: "System",
+      model: "Model",
+      gpu: "GPU",
+      backend: "Backend",
+      flashAttn: "Flash attention",
+      threads: "CPU threads",
+      version: "Version",
+      none: "—",
+      yes: "on",
+      no: "off",
+    },
+    actions: {
+      copy: "Copy full report",
+      copied: "Report copied",
+      clear: "Clear measurements",
+    },
+  },
   tray: {
     open: "Open Hyperwisper",
     status: (combo: string) => `Listening — ${combo}`,
@@ -233,13 +330,17 @@ export const en = {
           "Quick smoke test, rough quality. Not for everyday dictation.",
         baseQ5_1:
           "Light enough for modest hardware. Fine for short, simple sentences.",
-        smallQ5_1: "★ Recommended. The best quality/speed trade-off.",
+        smallQ5_1: "Light and fast. The best pick on a machine without a GPU.",
         small:
           "Unquantized Small. Marginally more accurate, 2.5× heavier.",
         mediumQ5_0:
           "For long technical dictations. Wants a strong CPU.",
+        largeV3TurboQ5_0:
+          "★ Recommended. Large-v3 accuracy at a fraction of the cost — fast on GPU.",
+        largeV3TurboQ8_0:
+          "Turbo with less quantization. A hair more accurate, 1.5× heavier.",
         largeV3Q5_0:
-          "Maximum accuracy. Slow even on GPU, overkill for dictation.",
+          "Original large-v3. Turbo matches it for dictation at a fraction of the time.",
       },
     },
 
@@ -461,7 +562,7 @@ export const en = {
     model: {
       title: "The transcription model",
       description:
-        "Whisper Small offers the best quality/speed trade-off. You can try others later under Models.",
+        "Whisper Large v3 Turbo offers the best quality/speed trade-off. You can try others later under Models.",
       sizeAndEta: (sizeMb: number) =>
         `${sizeMb} MB · about a minute to download`,
       unavailable: "Unavailable",
@@ -562,7 +663,7 @@ export const en = {
       copyLabel: "Copying files",
       copySublabel: "Drops the binary and registers the Uninstall entry",
       modelLabel: "Downloading the Whisper model",
-      modelSublabel: (sizeMb: number) => `Small Q5_1 model — about ${sizeMb} MB`,
+      modelSublabel: (sizeMb: number) => `Large v3 Turbo model — about ${sizeMb} MB`,
       modelProgress: (doneMb: string, totalMb: string, pct: string) =>
         `${doneMb} / ${totalMb} MB · ${pct}%`,
       finalizeLabel: "Creating shortcuts",

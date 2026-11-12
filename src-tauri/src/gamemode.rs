@@ -32,6 +32,57 @@ extern "system" {
     fn SHQueryUserNotificationState(pquns: *mut i32) -> i32;
 }
 
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn GetForegroundWindow() -> isize;
+    fn GetWindowThreadProcessId(hwnd: isize, pid: *mut u32) -> u32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn OpenProcess(access: u32, inherit: i32, pid: u32) -> isize;
+    fn QueryFullProcessImageNameW(process: isize, flags: u32, name: *mut u16, size: *mut u32) -> i32;
+    fn CloseHandle(handle: isize) -> i32;
+}
+
+/// Executable name of the foreground window's process ("Overwatch.exe").
+/// Recorded when game mode kicks in, so "the shortcut did nothing" can be
+/// traced to the app that caused it.
+pub fn foreground_app() -> Option<String> {
+    #[cfg(windows)]
+    unsafe {
+        const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 {
+            return None;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            return None;
+        }
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle == 0 {
+            return None;
+        }
+        let mut buf = [0u16; 512];
+        let mut len = buf.len() as u32;
+        let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len);
+        CloseHandle(handle);
+        if ok == 0 {
+            return None;
+        }
+        let path = String::from_utf16_lossy(&buf[..len as usize]);
+        path.rsplit(['\\', '/']).next().map(str::to_string)
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
 /// Values of `QUERY_USER_NOTIFICATION_STATE` (shellapi.h).
 #[cfg(windows)]
 mod quns {
@@ -90,6 +141,7 @@ pub fn spawn_watcher(app: AppHandle) {
                 if suspended {
                     restore(&app);
                     suspended = false;
+                    *state.game_mode_app.lock() = None;
                 }
                 continue;
             }
@@ -107,7 +159,12 @@ pub fn spawn_watcher(app: AppHandle) {
                 match app.global_shortcut().unregister_all() {
                     Ok(()) => {
                         suspended = true;
-                        tracing::info!("Game mode: fullscreen app detected, hotkey suspended");
+                        let culprit = foreground_app();
+                        tracing::info!(
+                            "Game mode: fullscreen app detected ({}), hotkey suspended",
+                            culprit.as_deref().unwrap_or("unknown")
+                        );
+                        *state.game_mode_app.lock() = Some(culprit.unwrap_or_default());
                         let _ = app.emit("gamemode:active", true);
                     }
                     Err(e) => tracing::warn!("Game mode: could not unregister hotkey: {}", e),
@@ -115,6 +172,7 @@ pub fn spawn_watcher(app: AppHandle) {
             } else if !busy && suspended {
                 restore(&app);
                 suspended = false;
+                *state.game_mode_app.lock() = None;
             }
         }
     });

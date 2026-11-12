@@ -4,6 +4,7 @@ mod gamemode;
 mod history;
 mod hotkey;
 mod installer;
+mod metrics;
 mod paste;
 mod recording;
 mod settings;
@@ -92,13 +93,7 @@ pub fn run() {
     );
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -209,6 +204,10 @@ pub fn run() {
             commands::save_overlay_position,
             commands::list_input_devices,
             commands::test_microphone,
+            commands::test_all_microphones,
+            commands::get_metrics,
+            commands::clear_metrics,
+            commands::get_runtime_info,
             commands::pause_hotkey,
             commands::resume_hotkey,
             commands::mark_onboarding_completed,
@@ -271,55 +270,51 @@ fn setup_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 /// If the installer shipped a model alongside the binary, copy it to the
 /// user's data dir on first launch so the rest of the app finds it at the
-/// usual location. Subsequent launches see the file already in place and
-/// skip the copy.
+/// usual location. Any catalog model may be bundled; subsequent launches see
+/// the file already in place and skip the copy.
 fn bootstrap_bundled_model(app: &tauri::AppHandle) {
-    let model = Model::default();
-    let bundled = match app.path().resolve(
-        format!("resources/{}", model.filename()),
-        BaseDirectory::Resource,
-    ) {
-        Ok(p) => p,
-        Err(_) => return, // no resource bundled (dev mode)
-    };
-
-    if !bundled.exists() {
-        return;
-    }
-
-    let user_path = match whisper::models::model_path(model) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::error!("Could not resolve user model path: {}", e);
-            return;
+    for model in Model::ALL {
+        let Ok(bundled) = app
+            .path()
+            .resolve(format!("resources/{}", model.filename()), BaseDirectory::Resource)
+        else {
+            return; // no resource dir (dev mode)
+        };
+        if !bundled.exists() {
+            continue;
         }
-    };
 
-    if user_path.exists() {
-        return; // already there, nothing to do
-    }
-
-    if let Some(parent) = user_path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            tracing::error!("Failed to create models dir: {}", e);
-            return;
+        let user_path = match whisper::models::model_path(model) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!("Could not resolve user model path: {}", e);
+                return;
+            }
+        };
+        if user_path.exists() {
+            continue;
         }
-    }
 
-    match std::fs::copy(&bundled, &user_path) {
-        Ok(bytes) => tracing::info!(
-            "Bootstrapped bundled model ({:.1} MB) to {}",
-            bytes as f64 / 1_048_576.0,
-            user_path.display()
-        ),
-        Err(e) => tracing::error!("Failed to copy bundled model: {}", e),
+        match std::fs::copy(&bundled, &user_path) {
+            Ok(bytes) => tracing::info!(
+                "Bootstrapped bundled model ({:.1} MB) to {}",
+                bytes as f64 / 1_048_576.0,
+                user_path.display()
+            ),
+            Err(e) => tracing::error!("Failed to copy bundled model: {}", e),
+        }
     }
 }
 
 async fn preload_default_model(app: tauri::AppHandle) {
     use tauri::Emitter;
 
-    let model = Model::default();
+    let settings = app.state::<AppState>().settings.get();
+    let Some(model) = whisper::models::resolve_startup_model(settings.model) else {
+        tracing::info!("No Whisper model on disk yet");
+        let _ = app.emit("model:missing", Model::default());
+        return;
+    };
     let path = match model_path(model) {
         Ok(p) => p,
         Err(e) => {
@@ -328,27 +323,19 @@ async fn preload_default_model(app: tauri::AppHandle) {
         }
     };
 
-    if !path.exists() {
-        tracing::info!("Default model not present at {}", path.display());
-        let _ = app.emit("model:missing", model);
-        return;
-    }
-
-    let load_path = path.clone();
     let engine_result =
-        tauri::async_runtime::spawn_blocking(move || WhisperEngine::load(&load_path, model, "fr"))
-            .await;
+        tauri::async_runtime::spawn_blocking(move || WhisperEngine::load(&path, model)).await;
 
     match engine_result {
         Ok(Ok(engine)) => {
             let state = app.state::<AppState>();
             *state.whisper.write() = Some(engine);
             let _ = app.emit("model:loaded", model);
-            tracing::info!("Default model preloaded successfully");
+            tracing::info!("Model {} preloaded successfully", model.display_name());
             warm_up_in_background(app.clone());
         }
         Ok(Err(e)) => {
-            tracing::error!("Failed to load default model: {}", e);
+            tracing::error!("Failed to load model {}: {}", model.display_name(), e);
             let _ = app.emit("model:load-error", e.to_string());
         }
         Err(e) => tracing::error!("Join error preloading model: {}", e),

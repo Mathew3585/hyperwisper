@@ -17,19 +17,23 @@ import {
   Sparkle,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { api, type InstallerStatus, type Model } from "@/lib/ipc";
+import {
+  api,
+  RECOMMENDED_FILENAME,
+  RECOMMENDED_MODEL,
+  type InstallerStatus,
+} from "@/lib/ipc";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 import { events, type DownloadProgress } from "@/lib/events";
 import { useT } from "@/i18n";
 
-const RECOMMENDED_MODEL: Model = "small-q5_1";
-const RECOMMENDED_FILENAME = "ggml-small-q5_1.bin";
 /**
  * Approximate on-disk size of the default Whisper model. The installer has no
  * runtime figure to read before the download starts, so the copy quotes this.
  * The uninstaller imports it rather than repeating the number, so the two can
  * never disagree.
  */
-export const MODEL_SIZE_MB = 290;
+export const MODEL_SIZE_MB = 574;
 
 type Step = "pitch" | "configure" | "installing" | "done" | "error";
 
@@ -64,14 +68,10 @@ export function InstallerApp() {
       // otherwise with the OS default.
       setInstallDir(s.existingInstallDir ?? s.defaultInstallDir);
     });
-    const unsubs: Array<() => void> = [];
-    events
-      .onModelProgress((p) => {
-        if (p.model === RECOMMENDED_FILENAME) setProgress(p);
-      })
-      .then((u) => unsubs.push(u));
-    return () => unsubs.forEach((u) => u());
   }, []);
+  useTauriEvent(events.onModelProgress, (p) => {
+    if (p.model === RECOMMENDED_FILENAME) setProgress(p);
+  });
 
   async function pickInstallDir() {
     try {

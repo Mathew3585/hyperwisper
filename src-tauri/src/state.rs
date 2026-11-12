@@ -27,6 +27,9 @@ pub struct AppState {
     /// inside that window makes the *previous* dictation's timer hide the
     /// *new* recording's overlay.
     pub recording_generation: AtomicU64,
+    /// Set while game mode has the hotkey suspended: the foreground app's
+    /// executable name (may be empty if it couldn't be read).
+    pub game_mode_app: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -38,6 +41,7 @@ impl AppState {
             overlay_position: Mutex::new(load_overlay_position()),
             settings: SettingsStore::new(),
             recording_generation: AtomicU64::new(0),
+            game_mode_app: Mutex::new(None),
         }
     }
 }
