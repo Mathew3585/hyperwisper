@@ -115,6 +115,51 @@ export const de: Dictionary = {
     cancelAriaLabel: "Diktat abbrechen",
   },
 
+  ui: {
+    testMic: "Mikrofon testen",
+    wordsDictated: "Wörter diktiert",
+    thisWeek: "Diese Woche",
+    wordsPerMinute: "Wörter/Min.",
+    dictations: "Diktate",
+    audio: "Audio",
+    fullHistory: "Gesamter Verlauf",
+    noDictationYet: "Deine Diktate erscheinen hier.",
+    themeCycle: (name: string) => `Design: ${name}`,
+    models: {
+      active: "Aktiv",
+      recommended: "Empfohlen",
+      others: "Weitere Modelle",
+      accuracy: "Genauigkeit",
+      speed: "Tempo",
+      none: "Kein Modell geladen",
+      noneHint: "Lade ein Modell aus der Liste herunter, um zu diktieren.",
+    },
+    settings: {
+      autosaved: "Automatisch gespeichert",
+      interface: "Oberfläche",
+      dictation: "Diktat",
+      test: "Testen",
+    },
+    history: {
+      search: "Suchen…",
+      searchAria: "Verlauf durchsuchen",
+      lastWeeks: "Letzte 5 Wochen",
+      localOnly: "Nur auf diesem PC",
+      today: "Heute",
+      yesterday: "Gestern",
+      noResults: "Kein Diktat passt zu deiner Suche.",
+      wordsTranscribed: "Wörter transkribiert",
+      daySummary: (d: number, w: number) =>
+        `${d} ${d === 1 ? "Diktat" : "Diktate"} · ${w} ${w === 1 ? "Wort" : "Wörter"}`,
+    },
+    about: {
+      license: "MIT-Lizenz",
+      offline: "100 % offline",
+      free: "Für immer kostenlos",
+      engine: "Whisper · whisper.cpp",
+    },
+  },
+
   /**
    * Beschriftungen für das Rust-Payload `get_system_status`. Das Backend
    * liefert stabile IDs statt Fließtext, deshalb stehen die Texte hier und

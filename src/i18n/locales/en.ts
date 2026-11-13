@@ -124,6 +124,52 @@ export const en = {
     cancelAriaLabel: "Cancel dictation",
   },
 
+  /** Strings introduced by the "Studio" redesign. */
+  ui: {
+    testMic: "Test the microphone",
+    wordsDictated: "words dictated",
+    thisWeek: "This week",
+    wordsPerMinute: "words/min",
+    dictations: "dictations",
+    audio: "audio",
+    fullHistory: "Full history",
+    noDictationYet: "Your dictations will show up here.",
+    themeCycle: (name: string) => `Theme: ${name}`,
+    models: {
+      active: "Active",
+      recommended: "Recommended",
+      others: "Other models",
+      accuracy: "Accuracy",
+      speed: "Speed",
+      none: "No model loaded",
+      noneHint: "Download a model from the list to start dictating.",
+    },
+    settings: {
+      autosaved: "Saved automatically",
+      interface: "Interface",
+      dictation: "Dictation",
+      test: "Test",
+    },
+    history: {
+      search: "Search…",
+      searchAria: "Search history",
+      lastWeeks: "Last 5 weeks",
+      localOnly: "Only on this PC",
+      today: "Today",
+      yesterday: "Yesterday",
+      noResults: "No dictation matches your search.",
+      wordsTranscribed: "words transcribed",
+      daySummary: (d: number, w: number) =>
+        `${d} ${d === 1 ? "dictation" : "dictations"} · ${w} ${w === 1 ? "word" : "words"}`,
+    },
+    about: {
+      license: "MIT licence",
+      offline: "100% offline",
+      free: "Free forever",
+      engine: "Whisper · whisper.cpp",
+    },
+  },
+
   /**
    * Labels for the Rust `get_system_status` payload. The backend now sends
    * stable ids instead of prose, so these live here and follow the UI

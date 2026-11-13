@@ -13,7 +13,7 @@ import { events } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/datetime";
 import { useTauriEvent } from "@/lib/useTauriEvent";
 import { useI18n, type Dictionary } from "@/i18n";
-import { PanelHeader, SectionLabel } from "./common";
+import { CardTitle, PanelHeader } from "./common";
 
 const TEST_SECONDS = 5;
 /** Per device in the "test every mic" sweep. */
@@ -67,11 +67,26 @@ export function DiagnosticsPanel() {
   }
 
   return (
-    <div className="space-y-10">
-      <PanelHeader title={d.title} description={d.description} />
+    <div className="space-y-4">
+      <PanelHeader
+        title={d.title}
+        description={d.description}
+        actions={
+          <>
+            <ActionButton onClick={clear} subtle>
+              <Trash2 className="h-3.5 w-3.5" />
+              {d.actions.clear}
+            </ActionButton>
+            <ActionButton onClick={copyReport} primary>
+              {copied ? <Check className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />}
+              {copied ? d.actions.copied : d.actions.copy}
+            </ActionButton>
+          </>
+        }
+      />
       {runtime?.gameModeSuspendedBy != null && (
         <div
-          className="rounded-[10px] border px-3.5 py-2.5 text-[12.5px] leading-relaxed"
+          className="rounded-xl border px-3.5 py-2.5 text-[12.5px] leading-relaxed text-app"
           style={{
             background: "hsl(var(--sand) / 0.08)",
             borderColor: "hsl(var(--sand) / 0.3)",
@@ -80,21 +95,12 @@ export function DiagnosticsPanel() {
           {d.gameModePaused(runtime.gameModeSuspendedBy)}
         </div>
       )}
-      <MicSection report={report} onReport={setReport} />
+      <div className="grid grid-cols-5 gap-3.5 items-start">
+        <MicSection report={report} onReport={setReport} />
+        <SystemSection runtime={runtime} />
+      </div>
       <AllMicsSection />
       <PerfSection metrics={metrics} />
-      <SystemSection runtime={runtime} />
-
-      <div className="flex flex-wrap gap-2">
-        <ActionButton onClick={copyReport}>
-          {copied ? <Check className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />}
-          {copied ? d.actions.copied : d.actions.copy}
-        </ActionButton>
-        <ActionButton onClick={clear} subtle>
-          <Trash2 className="h-3.5 w-3.5" />
-          {d.actions.clear}
-        </ActionButton>
-      </div>
     </div>
   );
 }
@@ -145,17 +151,16 @@ function MicSection({
   }
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{m.label}</SectionLabel>
-
-      <div className="rounded-[10px] border border-app bg-elevated p-4 space-y-4">
+    <section className="stage col-span-3 p-5 min-h-[252px]" aria-label={m.label}>
+      <div className="stage-glow -right-24 -top-28 w-[340px] h-[300px]" />
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[13px] text-app font-medium truncate">
-              {report?.format.device ?? "—"}
+            <div className="text-[15px] text-app font-semibold truncate">
+              {report?.format.device ?? m.label}
             </div>
             {report && (
-              <div className="text-[11.5px] text-faint font-mono">
+              <div className="text-[11px] text-muted font-mono">
                 {m.format(report.format.channels, report.format.sampleRate, report.format.sampleFormat)}
               </div>
             )}
@@ -180,7 +185,7 @@ function MicSection({
           </div>
         )}
 
-        {!report && !testing && <p className="text-[11.5px] text-faint leading-relaxed">{m.hint}</p>}
+        {!report && !testing && <p className="text-[12.5px] text-soft leading-relaxed max-w-[52ch]">{m.hint}</p>}
 
         {error && (
           <p className="text-[12px]" style={{ color: "hsl(var(--ember))" }}>
@@ -261,7 +266,7 @@ function MicReportView({ report }: { report: MicReport }) {
 
 function LevelBar({ rms, peak, clipped }: { rms: number; peak: number; clipped: boolean }) {
   return (
-    <div className="relative h-2 rounded-full bg-subtle overflow-hidden">
+    <div className="relative h-2.5 rounded-full bg-white/[0.08] overflow-hidden">
       <div
         className="absolute inset-y-0 left-0 rounded-full"
         style={{ width: `${dbToPct(toDb(rms))}%`, background: "hsl(var(--sand))" }}
@@ -333,9 +338,9 @@ function AllMicsSection() {
   }
 
   return (
-    <section className="space-y-3">
+    <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11.5px] text-faint leading-relaxed">
+        <p className="text-[12px] text-muted leading-relaxed">
           {running && current ? m.testingDevice(current) : m.testAllHint}
         </p>
         <ActionButton onClick={run} disabled={running}>
@@ -345,7 +350,7 @@ function AllMicsSection() {
       </div>
 
       {results && (
-        <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
+        <div className="rounded-xl border border-app overflow-hidden">
           {results.map((r, i) => {
             const rep = r.report;
             const tone = rep ? worstTone(rep.verdicts) : "bad";
@@ -451,11 +456,11 @@ function PerfSection({ metrics }: { metrics: DictationMetrics[] }) {
   const stats = useMemo(() => summarize(metrics), [metrics]);
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{p.label}</SectionLabel>
+    <section className="card px-5 py-4 space-y-4">
+      <CardTitle>{p.label}</CardTitle>
 
       {!stats ? (
-        <div className="rounded-[10px] border border-app bg-elevated p-4 text-[12.5px] text-faint flex items-center gap-2">
+        <div className="text-[12.5px] text-muted flex items-center gap-2">
           <Activity className="h-3.5 w-3.5" />
           {p.empty}
         </div>
@@ -473,9 +478,9 @@ function PerfSection({ metrics }: { metrics: DictationMetrics[] }) {
             <Stat label={p.count} value={String(metrics.length)} />
           </div>
 
-          <div className="rounded-[10px] border border-app bg-elevated p-4 space-y-2.5">
-            <div className="text-[11.5px] text-faint">{p.breakdown}</div>
-            <div className="flex h-2.5 rounded-full overflow-hidden bg-subtle">
+          <div className="space-y-2.5">
+            <div className="text-[11.5px] text-muted">{p.breakdown}</div>
+            <div className="flex gap-0.5 h-3.5 rounded overflow-hidden bg-subtle">
               {STAGES.map((s) => (
                 <div
                   key={s}
@@ -499,11 +504,11 @@ function PerfSection({ metrics }: { metrics: DictationMetrics[] }) {
             </div>
           </div>
 
-          <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
-            <div className="px-4 pt-3 pb-2 text-[11.5px] text-faint">{p.recent}</div>
+          <div className="rounded-xl border border-app overflow-hidden">
+            <div className="px-4 pt-3 pb-2 text-[12px] font-semibold text-app">{p.recent}</div>
             <table className="w-full text-[11.5px]">
               <thead>
-                <tr className="text-faint text-left">
+                <tr className="text-muted text-left">
                   <th className="font-normal px-4 py-1">{p.col.when}</th>
                   <th className="font-normal px-2 py-1 text-right">{p.col.audio}</th>
                   <th className="font-normal px-2 py-1 text-right">{p.col.whisper}</th>
@@ -571,9 +576,9 @@ function rowTitle(m: DictationMetrics): string {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[10px] border border-app bg-elevated px-3 py-2.5">
-      <div className="text-[10.5px] text-faint">{label}</div>
-      <div className="text-[15px] text-app font-semibold tabular-nums tracking-tight">{value}</div>
+    <div className="tile px-3 py-2.5 min-w-0">
+      <div className="font-mono text-[16px] text-app font-medium tabular-nums tracking-tight truncate">{value}</div>
+      <div className="text-[11px] text-muted truncate">{label}</div>
     </div>
   );
 }
@@ -583,7 +588,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 function SystemSection({ runtime }: { runtime: RuntimeInfo | null }) {
   const { t } = useI18n();
   const s = t.diagnostics.system;
-  if (!runtime) return null;
+  if (!runtime) {
+    return <section className="card col-span-2 min-h-[252px] animate-pulse" aria-label={s.label} />;
+  }
 
   const rows: Array<[string, string]> = [
     [s.model, runtime.model ?? s.none],
@@ -595,19 +602,16 @@ function SystemSection({ runtime }: { runtime: RuntimeInfo | null }) {
   ];
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{s.label}</SectionLabel>
-      <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
-        {rows.map(([k, v], i) => (
-          <div
-            key={k}
-            className={`flex justify-between gap-3 px-3.5 py-2 text-[12.5px] ${i > 0 ? "border-t border-soft" : ""}`}
-          >
-            <span className="text-faint">{k}</span>
-            <span className="text-soft font-mono text-[11.5px] text-right truncate">{v}</span>
+    <section className="card col-span-2 py-1.5">
+      <h2 className="px-[18px] pt-2.5 pb-2 text-[13px] font-semibold tracking-tight text-app">{s.label}</h2>
+      <dl>
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-3 px-[18px] py-[7px] text-[12.5px] border-t border-soft">
+            <dt className="text-muted">{k}</dt>
+            <dd className="text-app font-mono text-[11.5px] text-right truncate">{v}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     </section>
   );
 }
@@ -619,11 +623,13 @@ function ActionButton({
   onClick,
   disabled,
   subtle,
+  primary,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   subtle?: boolean;
+  primary?: boolean;
 }) {
   return (
     <button
@@ -631,10 +637,15 @@ function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors flex-shrink-0",
-        "disabled:opacity-70 disabled:cursor-default",
-        subtle ? "text-muted hover:bg-hover" : "bg-sand-soft text-sand hover:opacity-90",
+        "inline-flex items-center gap-1.5 h-[34px] rounded-[9px] px-3 text-[12px] font-medium transition-colors flex-shrink-0",
+        "disabled:opacity-70 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]",
+        primary
+          ? "hover:opacity-90"
+          : subtle
+          ? "border border-app bg-elevated text-soft hover:bg-hover hover:text-app"
+          : "border border-[hsl(var(--sand)/0.3)] bg-sand-soft text-sand hover:opacity-90",
       ].join(" ")}
+      style={primary ? { background: "hsl(var(--text))", color: "hsl(var(--bg))" } : undefined}
     >
       {children}
     </button>

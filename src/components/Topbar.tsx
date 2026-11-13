@@ -4,68 +4,99 @@ import type { Theme } from "@/lib/theme";
 import { useT } from "@/i18n";
 import { Logo } from "./Logo";
 
+export interface NavItem {
+  id: string;
+  label: string;
+}
+
 interface TopbarProps {
   theme: Theme;
   onThemeChange: (t: Theme) => void;
+  /** Section tabs. Omitted during onboarding, where there is nowhere to go. */
+  nav?: NavItem[];
+  active?: string;
+  onSelect?: (id: string) => void;
 }
 
-export function Topbar({ theme, onThemeChange }: TopbarProps) {
+/**
+ * Title bar and navigation in one strip: brand on the left, section tabs in
+ * the middle, theme + window controls on the right. The whole strip is a
+ * drag region; the interactive parts opt out.
+ */
+export function Topbar({ theme, onThemeChange, nav, active, onSelect }: TopbarProps) {
   const t = useT();
   return (
     <header
       data-tauri-drag-region
       aria-label={t.topbar.ariaLabel}
-      className="h-11 flex-shrink-0 px-3 flex items-center justify-between border-b border-app bg-app select-none"
+      className="h-[54px] flex-shrink-0 pl-[18px] pr-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-soft bg-app select-none"
     >
-      <div className="flex items-baseline gap-2.5 pl-1 pointer-events-none">
-        <Logo size={14} className="text-sand self-center" />
-        <span className="text-[12.5px] font-medium tracking-tight text-app">hyperwisper</span>
-        <span className="text-[10.5px] font-mono text-faint">v0.1</span>
+      <div className="flex items-center gap-2.5 pointer-events-none min-w-0">
+        <span className="h-7 w-7 flex-shrink-0 rounded-lg flex items-center justify-center bg-[#221d19] dark:bg-[hsl(var(--bg-subtle))]">
+          <Logo size={16} className="text-[#d6995c]" />
+        </span>
+        <span className="hidden min-[900px]:inline text-[13.5px] font-semibold tracking-[-0.02em] text-app truncate">
+          Hyperwisper
+        </span>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <ThemeToggle theme={theme} onChange={onThemeChange} />
+      {nav && nav.length > 0 ? (
+        <nav
+          data-tauri-drag-region="false"
+          aria-label={t.sidebar.navAriaLabel}
+          className="flex items-center gap-0.5 p-[3px] rounded-[11px] border border-app bg-subtle"
+        >
+          {nav.map((item) => {
+            const isActive = item.id === active;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelect?.(item.id)}
+                aria-current={isActive ? "page" : undefined}
+                className={`h-[30px] px-3 rounded-lg border text-[12.5px] font-medium tracking-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))] ${
+                  isActive
+                    ? "bg-elevated border-app text-app"
+                    : "border-transparent text-soft hover:text-app hover:bg-[hsl(var(--hover)/0.7)]"
+                }`}
+                style={isActive ? { boxShadow: "0 1px 2px rgba(60,35,15,0.10)" } : undefined}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : (
+        <span />
+      )}
+
+      <div data-tauri-drag-region="false" className="flex items-center justify-end gap-0.5">
+        <ThemeButton theme={theme} onChange={onThemeChange} />
         <WindowControls />
       </div>
     </header>
   );
 }
 
-function ThemeToggle({ theme, onChange }: { theme: Theme; onChange: (t: Theme) => void }) {
+const THEME_ORDER: Theme[] = ["light", "dark", "system"];
+
+/** One button that cycles light → dark → system; the icon shows the current one. */
+function ThemeButton({ theme, onChange }: { theme: Theme; onChange: (t: Theme) => void }) {
   const t = useT();
-  const options = [
-    { value: "light" as const, icon: Sun, label: t.topbar.theme.light },
-    { value: "dark" as const, icon: Moon, label: t.topbar.theme.dark },
-    { value: "system" as const, icon: Monitor, label: t.topbar.theme.system },
-  ];
+  const labels = { light: t.topbar.theme.light, dark: t.topbar.theme.dark, system: t.topbar.theme.system };
+  const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
+  const label = t.ui.themeCycle(labels[theme]);
   return (
-    <div
-      data-tauri-drag-region="false"
-      role="radiogroup"
-      aria-label={t.topbar.theme.groupAriaLabel}
-      className="flex items-center gap-px rounded-md border border-app p-0.5 bg-elevated"
+    <button
+      type="button"
+      onClick={() => onChange(next)}
+      title={label}
+      aria-label={label}
+      className="flex items-center justify-center h-7 w-[34px] rounded-[7px] text-soft hover:bg-hover hover:text-app transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]"
     >
-      {options.map(({ value, icon: Icon, label }) => {
-        const active = theme === value;
-        return (
-          <button
-            key={value}
-            onClick={() => onChange(value)}
-            role="radio"
-            aria-checked={active}
-            aria-label={label}
-            title={label}
-            className={`p-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))] ${
-              active
-                ? "text-app bg-hover"
-                : "text-faint hover:text-app hover:bg-[hsl(var(--hover)/0.5)]"
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
-          </button>
-        );
-      })}
-    </div>
+      <Icon className="h-[14px] w-[14px]" strokeWidth={2.1} />
+    </button>
   );
 }
 
@@ -73,7 +104,7 @@ function WindowControls() {
   const t = useT();
   const win = getCurrentWindow();
   return (
-    <div data-tauri-drag-region="false" className="flex items-center gap-px ml-1">
+    <div className="flex items-center gap-px ml-0.5">
       <WindowButton onClick={() => win.minimize()} label={t.window.minimize}>
         <Minus className="h-3 w-3" strokeWidth={2.2} />
       </WindowButton>
@@ -100,13 +131,12 @@ function WindowButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`flex items-center justify-center h-7 w-9 rounded-md text-faint transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))] ${
-        danger
-          ? "hover:bg-[hsl(var(--ember)/0.18)] hover:text-ember"
-          : "hover:bg-hover hover:text-app"
+      className={`flex items-center justify-center h-7 w-[34px] rounded-[7px] text-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))] ${
+        danger ? "hover:bg-[hsl(var(--ember)/0.15)] hover:text-ember" : "hover:bg-hover hover:text-app"
       }`}
     >
       {children}

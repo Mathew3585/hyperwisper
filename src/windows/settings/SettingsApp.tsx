@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Home,
-  Cpu,
-  SlidersHorizontal,
-  History,
-  Info,
-  Activity,
-} from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, type AppSettings, type Model, type ModelStatus } from "@/lib/ipc";
 import { events, type DownloadProgress } from "@/lib/events";
 import { applyTheme, getStoredTheme, setStoredTheme, type Theme } from "@/lib/theme";
-import { Sidebar, type NavItem } from "@/components/Sidebar";
-import { Topbar } from "@/components/Topbar";
+import { Topbar, type NavItem } from "@/components/Topbar";
 import { useT, type Dictionary } from "@/i18n";
 import { useTrayLabels } from "@/lib/useTrayLabels";
 import { useTauriEvent } from "@/lib/useTauriEvent";
@@ -34,12 +25,12 @@ type PanelId = "home" | "models" | "settings" | "history" | "diagnostics" | "abo
  */
 function buildNav(t: Dictionary): NavItem[] {
   return [
-    { id: "home", label: t.nav.home, icon: Home },
-    { id: "models", label: t.nav.models, icon: Cpu },
-    { id: "settings", label: t.nav.settings, icon: SlidersHorizontal },
-    { id: "history", label: t.nav.history, icon: History },
-    { id: "diagnostics", label: t.nav.diagnostics, icon: Activity },
-    { id: "about", label: t.nav.about, icon: Info },
+    { id: "home", label: t.nav.home },
+    { id: "models", label: t.nav.models },
+    { id: "settings", label: t.nav.settings },
+    { id: "history", label: t.nav.history },
+    { id: "diagnostics", label: t.nav.diagnostics },
+    { id: "about", label: t.nav.about },
   ];
 }
 
@@ -161,17 +152,17 @@ export function SettingsApp() {
 
   return (
     <div className="h-screen flex flex-col bg-app">
-      <Topbar theme={theme} onThemeChange={changeTheme} />
+      <Topbar
+        theme={theme}
+        onThemeChange={changeTheme}
+        nav={nav}
+        active={panel}
+        onSelect={(id) => setPanel(id as PanelId)}
+      />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          items={nav}
-          active={panel}
-          onSelect={(id) => setPanel(id as PanelId)}
-        />
-
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[560px] mx-auto px-12 py-14">
+          <div className="max-w-[1120px] mx-auto px-7 pt-[22px] pb-7">
             <AnimatePresence mode="wait">
               <motion.div
                 key={panel}

@@ -24,11 +24,11 @@
 
     --text:         28 22% 9%;
     --text-soft:    30 14% 27%;
-    --text-muted:   32 9% 45%;
-    --text-faint:   34 9% 62%;
+    --text-muted:   32 9% 39%;
+    --text-faint:   34 8% 52%;
 
     /* Single warm accent — used sparingly */
-    --sand:         24 56% 47%;     /* terracotta */
+    --sand:         24 58% 42%;     /* terracotta — dark enough for 4.5:1 text on paper */
     --sand-soft:    24 56% 47% / 0.10;
     --accent-fg:    36 22% 97%;     /* text color on sand-filled buttons */
 
@@ -54,8 +54,8 @@
 
     --text:         36 25% 94%;
     --text-soft:    32 14% 78%;
-    --text-muted:   30 8% 56%;
-    --text-faint:   30 8% 35%;
+    --text-muted:   30 8% 60%;
+    --text-faint:   30 8% 46%;
 
     --sand:         30 60% 60%;
     --sand-soft:    30 60% 60% / 0.13;
@@ -63,6 +63,62 @@
 
     --ember:        6  70% 62%;
     --moss:         88 38% 60%;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   "Studio" surfaces. `.card` is the default container; `.stage`
+   is the one dark coffee panel per screen that carries the brand.
+   The stage re-declares the tokens instead of hard-coding colors,
+   so every child using text-app / bg-subtle / text-sand adapts on
+   its own — the same trick as the .dark class, scoped to a box.
+   ───────────────────────────────────────────────────────── */
+@layer components {
+  .card {
+    background: hsl(var(--bg-elevated));
+    border: 1px solid hsl(var(--border));
+    border-radius: 18px;
+  }
+  .tile {
+    background: hsl(var(--bg-subtle));
+    border-radius: 10px;
+  }
+  .stage {
+    --bg:           24 15% 10%;
+    --bg-elevated:  24 13% 14%;
+    --bg-subtle:    24 12% 15%;
+    --surface:      24 13% 14%;
+    --border:       28 12% 22%;
+    --border-soft:  28 12% 17%;
+    --hover:        28 12% 18%;
+    --text:         36 25% 94%;
+    --text-soft:    32 14% 78%;
+    --text-muted:   30 9% 62%;
+    --text-faint:   30 8% 50%;
+    --sand:         30 60% 60%;
+    --sand-soft:    30 60% 60% / 0.14;
+    --accent-fg:    28 14% 9%;
+    --ember:        6  70% 62%;
+    --moss:         88 38% 60%;
+
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: hsl(var(--bg));
+    color: hsl(var(--text));
+    border-radius: 18px;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 220, 0.07);
+  }
+  .dark .stage {
+    --bg: 26 17% 12%;
+    border: 1px solid hsl(28 12% 18%);
+  }
+  /* Warm glow behind the stage content. */
+  .stage-glow {
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(closest-side, hsl(30 60% 60% / 0.26), transparent);
   }
 }
 

@@ -1,7 +1,6 @@
-import { Check } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { UI_LOCALES, useI18n, type UiLocale } from "@/i18n";
-import { SectionLabel } from "./common";
 
 /**
  * Interface-language picker.
@@ -14,43 +13,57 @@ export function LanguageSection() {
   const { locale, setLocale, t } = useI18n();
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{t.settings.language.uiLabel}</SectionLabel>
+    <LanguageRow
+      id="ui-language"
+      label={t.ui.settings.interface}
+      hint={t.settings.language.uiHint}
+      value={locale}
+      onChange={(v) => setLocale(v as UiLocale)}
+      options={UI_LOCALES.map((o) => ({ value: o.code, label: o.native }))}
+    />
+  );
+}
 
-      <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
-        {UI_LOCALES.map((option, i) => {
-          const active = option.code === locale;
-          return (
-            <button
-              key={option.code}
-              type="button"
-              onClick={() => setLocale(option.code as UiLocale)}
-              lang={option.code}
-              aria-pressed={active}
-              className={[
-                "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors",
-                i > 0 ? "border-t border-soft" : "",
-                active ? "bg-sand-soft" : "hover:bg-hover",
-              ].join(" ")}
-            >
-              <span
-                className={[
-                  "text-[13px]",
-                  active ? "text-app font-medium" : "text-soft",
-                ].join(" ")}
-              >
-                {option.native}
-              </span>
-
-              {active && <Check size={15} className="text-sand shrink-0" />}
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="text-[11.5px] text-faint leading-relaxed">
-        {t.settings.language.uiHint}
-      </p>
-    </section>
+/** Label + hint on the left, a compact native select on the right. */
+export function LanguageRow({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <label htmlFor={id} className="min-w-0 space-y-0.5">
+        <span className="block text-[12.5px] font-medium text-app">{label}</span>
+        {hint && <span className="block text-[11px] text-muted leading-snug">{hint}</span>}
+      </label>
+      <span className="relative flex-shrink-0">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="appearance-none min-w-[168px] h-[34px] pl-3 pr-8 rounded-[9px] border border-app bg-app text-[12.5px] text-app cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-soft"
+          strokeWidth={2.2}
+        />
+      </span>
+    </div>
   );
 }

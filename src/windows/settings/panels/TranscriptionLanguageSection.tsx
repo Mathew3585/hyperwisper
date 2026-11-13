@@ -1,8 +1,7 @@
 import { useMemo } from "react";
-import { Check } from "lucide-react";
 
 import { useI18n } from "@/i18n";
-import { SectionLabel } from "./common";
+import { LanguageRow } from "./LanguageSection";
 
 /**
  * Languages Whisper large-v3 transcribes with the lowest error rates, as
@@ -28,61 +27,25 @@ export function TranscriptionLanguageSection({
 
   // Each language named in itself ("Deutsch", "日本語"), like the interface
   // picker — someone looking for their language recognises it that way.
-  const options = useMemo(
-    () =>
-      WELL_SUPPORTED.map((code) => ({
-        code,
-        label: nativeName(code),
-      })),
-    []
-  );
-
-  const rows: Array<{ code: string; label: string; sublabel?: string }> = [
-    { code: "auto", label: l.autoDetect, sublabel: l.autoDetectSublabel },
-    ...options,
-  ];
+  const options = useMemo(() => {
+    const list: Array<{ value: string; label: string }> = [
+      { value: "auto", label: l.autoDetect },
+      ...WELL_SUPPORTED.map((code) => ({ value: code, label: nativeName(code) })),
+    ];
+    // A code set elsewhere (older settings file) must still show as selected.
+    if (!list.some((o) => o.value === value)) list.push({ value, label: nativeName(value) });
+    return list;
+  }, [l.autoDetect, value]);
 
   return (
-    <section className="space-y-3">
-      <SectionLabel>{l.transcriptionLabel}</SectionLabel>
-
-      <div className="rounded-[10px] border border-app bg-elevated overflow-hidden">
-        {rows.map((row, i) => {
-          const active = row.code === value;
-          return (
-            <button
-              key={row.code}
-              type="button"
-              onClick={() => onChange(row.code)}
-              lang={row.code === "auto" ? undefined : row.code}
-              aria-pressed={active}
-              className={[
-                "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors",
-                i > 0 ? "border-t border-soft" : "",
-                active ? "bg-sand-soft" : "hover:bg-hover",
-              ].join(" ")}
-            >
-              <span className="flex flex-col">
-                <span
-                  className={["text-[13px]", active ? "text-app font-medium" : "text-soft"].join(
-                    " "
-                  )}
-                >
-                  {row.label}
-                </span>
-                {row.sublabel && (
-                  <span className="text-[11px] text-faint">{row.sublabel}</span>
-                )}
-              </span>
-
-              {active && <Check size={15} className="text-sand shrink-0" />}
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="text-[11.5px] text-faint leading-relaxed">{l.transcriptionHint}</p>
-    </section>
+    <LanguageRow
+      id="dictation-language"
+      label={t.ui.settings.dictation}
+      hint={l.transcriptionLabel}
+      value={value}
+      onChange={onChange}
+      options={options}
+    />
   );
 }
 

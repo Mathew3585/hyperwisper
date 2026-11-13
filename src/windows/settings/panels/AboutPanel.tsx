@@ -1,14 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Trash2, Loader2, Lock } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { api } from "@/lib/ipc";
 import { useT } from "@/i18n";
+import { CardTitle } from "./common";
+
+/** Decorative waveform in the corner of the brand stage. */
+const DECO = Array.from({ length: 22 }, (_, i) =>
+  Math.round(8 + Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21)) * 70)
+);
 
 export function AboutPanel() {
   const t = useT();
+  const a = t.settings.about;
   const [uninstalling, setUninstalling] = useState(false);
   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
+  const [hotkey, setHotkey] = useState("Ctrl+Space");
+  const [version, setVersion] = useState("0.1.0");
+
+  useEffect(() => {
+    api.getSettings().then((s) => setHotkey(s.hotkey)).catch(() => {});
+    api.getRuntimeInfo().then((r) => setVersion(r.appVersion)).catch(() => {});
+  }, []);
 
   async function triggerUninstall() {
     setUninstalling(true);
@@ -22,202 +36,172 @@ export function AboutPanel() {
     }
   }
 
+  const combo = hotkey.split("+").join(" + ");
+
   return (
-    <div className="space-y-14">
-      {/* Hero — brand */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-        className="space-y-8"
-      >
-        <Logo size={64} className="text-sand" />
-        <div className="space-y-2.5">
-          <h1 className="text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            hyperwisper
-          </h1>
-          <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            {t.settings.about.tagline}
+    <div className="space-y-3.5">
+      <section className="grid grid-cols-5 gap-3.5">
+        {/* ─── Brand stage ─────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
+          className="stage col-span-3 min-h-[214px] p-6 flex flex-col justify-between gap-4"
+        >
+          <div className="stage-glow -right-10 -top-16 w-[340px] h-[300px]" />
+          <div className="absolute right-6 bottom-[18px] flex items-center gap-1 h-20 -z-10" aria-hidden="true">
+            {DECO.map((h, i) => (
+              <span key={i} className="w-1 rounded-full bg-sand opacity-[0.22]" style={{ height: h }} />
+            ))}
+          </div>
+          <div className="flex items-center gap-4">
+            <span
+              className="h-[60px] w-[60px] rounded-2xl flex items-center justify-center bg-elevated"
+              style={{ boxShadow: "inset 0 0 0 1px hsl(var(--border)), 0 10px 30px hsl(30 60% 60% / 0.25)" }}
+            >
+              <Logo size={32} className="text-sand" />
+            </span>
+            <div className="space-y-0.5">
+              <h1 className="text-[30px] leading-none font-bold tracking-[-0.045em] text-app">Hyperwisper</h1>
+              <div className="font-mono text-[11px] text-muted">
+                v{version} · {t.ui.about.license}
+              </div>
+            </div>
+          </div>
+          <p className="text-[14px] leading-relaxed text-soft max-w-[42ch]">{a.tagline}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[t.ui.about.offline, t.ui.about.engine, t.ui.about.free].map((c) => (
+              <span
+                key={c}
+                className="px-2.5 py-1 rounded-full text-[11.5px] text-soft bg-white/[0.07] border border-white/10"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ─── Why ─────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.06 }}
+          className="card col-span-2 px-5 py-[18px] space-y-2.5"
+        >
+          <CardTitle>{a.whyLabel}</CardTitle>
+          <p className="text-[12.5px] leading-relaxed text-soft">
+            {a.why.p1Prefix} <strong className="font-semibold text-app">{a.why.p1Emphasis}</strong>{" "}
+            {a.why.p1Suffix}
           </p>
-        </div>
-      </motion.section>
+          <p className="text-[12.5px] leading-relaxed text-soft">{a.why.p2}</p>
+        </motion.div>
+      </section>
 
-      {/* Pourquoi */}
+      {/* ─── How it works ──────────────────────────────────────── */}
       <motion.section
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.08 }}
-        className="space-y-4"
+        transition={{ duration: 0.4, delay: 0.12 }}
+        className="space-y-2.5"
       >
-        <Label>{t.settings.about.whyLabel}</Label>
-        <Paragraph>
-          {t.settings.about.why.p1Prefix} <em>{t.settings.about.why.p1Emphasis}</em>{" "}
-          {t.settings.about.why.p1Suffix}
-        </Paragraph>
-        <Paragraph>{t.settings.about.why.p2}</Paragraph>
-      </motion.section>
-
-      {/* Comment ça marche */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.16 }}
-        className="space-y-4"
-      >
-        <Label>{t.settings.about.howLabel}</Label>
-        <div className="space-y-5">
-          <Step
-            num="1"
-            title={`${t.settings.about.step1.titlePrefix} Ctrl + Space`}
-            description={t.settings.about.step1.description}
-          />
+        <h2 className="text-[13px] font-semibold tracking-tight text-app">{a.howLabel}</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <Step num="1" title={`${a.step1.titlePrefix} ${combo}`} description={a.step1.description} />
           <Step
             num="2"
-            title={t.settings.about.step2.title}
-            description={`${t.settings.about.step2.descriptionPrefix} Ctrl + Space ${t.settings.about.step2.descriptionSuffix}`}
+            title={a.step2.title}
+            description={`${a.step2.descriptionPrefix} ${combo} ${a.step2.descriptionSuffix}`}
           />
-          <Step
-            num="3"
-            title={t.settings.about.step3.title}
-            description={t.settings.about.step3.description}
-          />
+          <Step num="3" title={a.step3.title} description={a.step3.description} />
         </div>
       </motion.section>
 
-      {/* Confidentialité */}
+      {/* ─── Privacy + danger zone ─────────────────────────────── */}
       <motion.section
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.24 }}
-        className="space-y-4"
+        transition={{ duration: 0.4, delay: 0.18 }}
+        className="grid grid-cols-2 gap-3"
       >
-        <Label>{t.settings.about.privacyLabel}</Label>
-        <Paragraph>{t.settings.about.privacyBody}</Paragraph>
-      </motion.section>
+        <div className="card rounded-[14px] px-[18px] py-4 flex items-start gap-3.5">
+          <span
+            className="h-[34px] w-[34px] flex-shrink-0 rounded-[10px] flex items-center justify-center text-moss"
+            style={{ background: "hsl(var(--moss) / 0.14)" }}
+          >
+            <Lock className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <span className="space-y-1">
+            <span className="block text-[13px] font-semibold text-app">{a.privacyLabel}</span>
+            <span className="block text-[12px] leading-relaxed text-muted">{a.privacyBody}</span>
+          </span>
+        </div>
 
-      {/* Désinstallation */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
-        className="space-y-3"
-      >
-        <Label>{t.settings.about.dangerLabel}</Label>
         <div
-          className="rounded-lg border p-4 flex items-start justify-between gap-4"
-          style={{
-            background: "hsl(var(--ember) / 0.04)",
-            borderColor: "hsl(var(--ember) / 0.22)",
-          }}
+          className="rounded-[14px] border px-[18px] py-4 flex items-center gap-3.5"
+          style={{ background: "hsl(var(--ember) / 0.05)", borderColor: "hsl(var(--ember) / 0.25)" }}
         >
-          <div className="flex-1 space-y-1">
-            <div className="text-[13px] font-medium text-app flex items-center gap-2">
-              <AlertTriangle className="h-3 w-3" strokeWidth={2.4} style={{ color: "hsl(var(--ember))" }} />
-              {t.settings.about.uninstall.title}
-            </div>
-            <p className="text-[11.5px] text-muted leading-relaxed">
-              {t.settings.about.uninstall.description}
-            </p>
-          </div>
+          <span className="flex-1 min-w-0 space-y-1">
+            <span className="block text-[13px] font-semibold" style={{ color: "hsl(var(--ember))" }}>
+              {a.uninstall.title}
+            </span>
+            <span className="block text-[12px] leading-relaxed text-muted">{a.uninstall.description}</span>
+          </span>
           {!confirmingUninstall ? (
             <button
+              type="button"
               onClick={() => setConfirmingUninstall(true)}
               disabled={uninstalling}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--ember))]"
-              style={{
-                background: "transparent",
-                borderColor: "hsl(var(--ember) / 0.4)",
-                color: "hsl(var(--ember))",
-              }}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 h-[34px] px-3.5 rounded-[9px] text-[12px] font-medium border bg-elevated transition-colors hover:bg-[hsl(var(--ember)/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ember))]"
+              style={{ borderColor: "hsl(var(--ember) / 0.4)", color: "hsl(var(--ember))" }}
             >
               <Trash2 className="h-3 w-3" strokeWidth={2.4} />
-              {t.settings.about.uninstall.button}
+              {a.uninstall.button}
             </button>
           ) : (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
+                type="button"
                 onClick={() => setConfirmingUninstall(false)}
                 disabled={uninstalling}
-                className="inline-flex items-center px-3 py-1.5 rounded-md text-[12px] text-muted hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
+                className="inline-flex items-center h-[34px] px-3 rounded-[9px] text-[12px] text-soft hover:bg-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]"
               >
                 {t.common.cancel}
               </button>
               <button
+                type="button"
                 onClick={triggerUninstall}
                 disabled={uninstalling}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-all duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--ember))]"
-                style={{
-                  background: "hsl(var(--ember))",
-                  color: "white",
-                }}
+                className="inline-flex items-center gap-1.5 h-[34px] px-3.5 rounded-[9px] text-[12px] font-medium text-white transition-opacity hover:opacity-90 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ember))]"
+                style={{ background: "hsl(var(--ember))" }}
               >
                 {uninstalling ? (
                   <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.4} />
                 ) : (
                   <Trash2 className="h-3 w-3" strokeWidth={2.4} />
                 )}
-                {uninstalling
-                  ? t.settings.about.uninstall.launching
-                  : t.common.continue}
+                {uninstalling ? a.uninstall.launching : t.common.continue}
               </button>
             </div>
           )}
         </div>
       </motion.section>
 
-      {/* Footer */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.38 }}
-        className="pt-6 flex items-center justify-between text-[11.5px] text-faint border-t border-soft"
-      >
-        <span className="font-mono">v0.1.0</span>
-        <span>{t.settings.about.credit}</span>
-      </motion.section>
+      <footer className="pt-2 text-center text-[11.5px] text-muted">{a.credit}</footer>
     </div>
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function Step({ num, title, description }: { num: string; title: string; description: string }) {
   return (
-    <div className="text-[10.5px] uppercase tracking-[0.1em] font-medium text-faint">
-      {children}
-    </div>
-  );
-}
-
-function Paragraph({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[14px] leading-[1.65] text-soft max-w-[58ch]">{children}</p>
-  );
-}
-
-function Step({
-  num,
-  title,
-  description,
-}: {
-  num: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex gap-4">
-      <div
-        className="flex items-center justify-center h-7 w-7 rounded-full font-mono text-[12px] font-semibold flex-shrink-0"
-        style={{
-          background: "hsl(var(--sand-soft))",
-          color: "hsl(var(--sand))",
-          border: "1px solid hsl(var(--sand) / 0.25)",
-        }}
+    <div className="card rounded-[14px] p-4 space-y-2 min-h-[132px]">
+      <span
+        className="h-[26px] w-[26px] rounded-lg flex items-center justify-center font-mono text-[12px] font-medium text-sand"
+        style={{ background: "hsl(var(--sand-soft))" }}
       >
         {num}
-      </div>
-      <div className="flex-1 space-y-1 pt-0.5">
-        <div className="text-[14px] font-medium tracking-tight text-app">{title}</div>
-        <p className="text-[13px] leading-relaxed text-soft max-w-[54ch]">{description}</p>
-      </div>
+      </span>
+      <div className="text-[13px] font-semibold tracking-tight text-app">{title}</div>
+      <p className="text-[12px] leading-relaxed text-muted">{description}</p>
     </div>
   );
 }

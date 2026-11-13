@@ -102,6 +102,51 @@ export const fr: Dictionary = {
     },
   },
 
+  ui: {
+    testMic: "Tester le micro",
+    wordsDictated: "mots dictés",
+    thisWeek: "Cette semaine",
+    wordsPerMinute: "mots/min",
+    dictations: "dictées",
+    audio: "audio",
+    fullHistory: "Tout l'historique",
+    noDictationYet: "Tes dictées apparaîtront ici.",
+    themeCycle: (name: string) => `Thème : ${name}`,
+    models: {
+      active: "Actif",
+      recommended: "Recommandé",
+      others: "Autres modèles",
+      accuracy: "Précision",
+      speed: "Vitesse",
+      none: "Aucun modèle chargé",
+      noneHint: "Télécharge un modèle dans la liste pour commencer à dicter.",
+    },
+    settings: {
+      autosaved: "Enregistré automatiquement",
+      interface: "Interface",
+      dictation: "Dictée",
+      test: "Tester",
+    },
+    history: {
+      search: "Rechercher…",
+      searchAria: "Rechercher dans l'historique",
+      lastWeeks: "5 dernières semaines",
+      localOnly: "Uniquement sur ce PC",
+      today: "Aujourd'hui",
+      yesterday: "Hier",
+      noResults: "Aucune dictée ne correspond à ta recherche.",
+      wordsTranscribed: "mots transcrits",
+      daySummary: (d: number, w: number) =>
+        `${d} ${d > 1 ? "dictées" : "dictée"} · ${w} ${w > 1 ? "mots" : "mot"}`,
+    },
+    about: {
+      license: "licence MIT",
+      offline: "100 % hors ligne",
+      free: "Gratuit pour toujours",
+      engine: "Whisper · whisper.cpp",
+    },
+  },
+
   overlay: {
     transcribing: "Transcription",
     done: "Collé",

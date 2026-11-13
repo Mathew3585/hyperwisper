@@ -98,6 +98,51 @@ export const es: Dictionary = {
     },
   },
 
+  ui: {
+    testMic: "Probar el micrófono",
+    wordsDictated: "palabras dictadas",
+    thisWeek: "Esta semana",
+    wordsPerMinute: "palabras/min",
+    dictations: "dictados",
+    audio: "audio",
+    fullHistory: "Todo el historial",
+    noDictationYet: "Tus dictados aparecerán aquí.",
+    themeCycle: (name: string) => `Tema: ${name}`,
+    models: {
+      active: "Activo",
+      recommended: "Recomendado",
+      others: "Otros modelos",
+      accuracy: "Precisión",
+      speed: "Velocidad",
+      none: "Ningún modelo cargado",
+      noneHint: "Descarga un modelo de la lista para empezar a dictar.",
+    },
+    settings: {
+      autosaved: "Guardado automáticamente",
+      interface: "Interfaz",
+      dictation: "Dictado",
+      test: "Probar",
+    },
+    history: {
+      search: "Buscar…",
+      searchAria: "Buscar en el historial",
+      lastWeeks: "Últimas 5 semanas",
+      localOnly: "Solo en este PC",
+      today: "Hoy",
+      yesterday: "Ayer",
+      noResults: "Ningún dictado coincide con tu búsqueda.",
+      wordsTranscribed: "palabras transcritas",
+      daySummary: (d: number, w: number) =>
+        `${d} ${d === 1 ? "dictado" : "dictados"} · ${w} ${w === 1 ? "palabra" : "palabras"}`,
+    },
+    about: {
+      license: "licencia MIT",
+      offline: "100 % sin conexión",
+      free: "Gratis para siempre",
+      engine: "Whisper · whisper.cpp",
+    },
+  },
+
   overlay: {
     transcribing: "Transcribiendo",
     done: "Pegado",

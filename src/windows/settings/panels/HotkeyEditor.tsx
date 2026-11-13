@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Command, X, Check } from "lucide-react";
+import { X, Check } from "lucide-react";
 import { api } from "@/lib/ipc";
 import { useT } from "@/i18n";
+import { HotkeyCaps } from "./common";
 
 /**
  * The capture widget for the global shortcut. It lives in its own module
@@ -61,10 +62,9 @@ export function HotkeyEditor({
   }
 
   return (
-    <div className="rounded-lg border border-app bg-elevated p-4 space-y-3">
+    <div className="tile rounded-xl px-3.5 py-3 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <Command className="h-3.5 w-3.5 text-faint" strokeWidth={2.2} />
           <AnimatePresence mode="wait">
             {capturing ? (
               <motion.div
@@ -96,14 +96,7 @@ export function HotkeyEditor({
                 exit={{ opacity: 0 }}
                 className="flex items-center gap-1"
               >
-                {current.split("+").map((part, i, arr) => (
-                  <span key={`${part}-${i}`} className="flex items-center gap-1">
-                    <KeyChip>{part.trim()}</KeyChip>
-                    {i < arr.length - 1 && (
-                      <span className="text-faint text-[11px]">+</span>
-                    )}
-                  </span>
-                ))}
+                <HotkeyCaps combo={current} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -112,7 +105,7 @@ export function HotkeyEditor({
         {!capturing && (
           <button
             onClick={() => setCapturing(true)}
-            className="text-[12px] font-medium px-3 py-1.5 rounded-md bg-elevated hover:bg-hover border border-app transition-colors"
+            className="h-8 text-[12px] font-medium px-3 rounded-lg bg-elevated hover:bg-hover border border-app text-app transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]"
           >
             {t.common.edit}
           </button>
@@ -154,7 +147,7 @@ export function HotkeyEditor({
       )}
 
       {mode && (
-        <div className="text-[11px] text-faint pt-1 border-t border-soft">
+        <div className="text-[11px] text-muted pt-2 border-t border-app">
           {t.settings.shortcuts.editor.modeHintPrefix}{" "}
           <span className="text-soft font-medium">
             {mode === "toggle"

@@ -19,8 +19,9 @@ export function Toggle({
       onClick={() => onChange(!checked)}
       className="relative h-[22px] w-[40px] rounded-full transition-colors duration-200 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[hsl(var(--sand))] focus-visible:ring-offset-[hsl(var(--bg))]"
       style={{
-        background: checked ? "hsl(var(--sand))" : "hsl(var(--bg-subtle))",
-        border: "1px solid hsl(var(--border))",
+        // Terracotta when on; the light sand reads too pale against white.
+        background: checked ? "hsl(24 56% 49%)" : "hsl(var(--border))",
+        border: "1px solid transparent",
       }}
       role="switch"
       aria-checked={checked}

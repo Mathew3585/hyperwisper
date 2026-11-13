@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, AlertTriangle, X, ChevronRight, Mic, FileText, Clock } from "lucide-react";
+import { Check, AlertTriangle, X, ChevronRight, Mic } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { Logo } from "@/components/Logo";
 import { api, type HistoryEntry } from "@/lib/ipc";
 import { events } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/datetime";
 import { useI18n, type Dictionary } from "@/i18n";
-import { SectionLabel, Kbd } from "./common";
+import { HotkeyCaps, StatusChip } from "./common";
 import { useTauriEvent } from "@/lib/useTauriEvent";
 
 type StatusLevel = "ok" | "warn" | "error";
@@ -45,24 +44,39 @@ interface GeneralPanelProps {
   onNavigate: (panelId: string) => void;
 }
 
+const DAY_MS = 86_400_000;
+
+/** Decorative bar heights either side of the mic button, tallest nearest it. */
+const STAGE_BARS = Array.from({ length: 14 }, (_, i) => {
+  const v = Math.abs(Math.sin((i + 3) * 0.55) * Math.cos((i + 3) * 0.21)) * 0.85 + 0.12;
+  const fade = 1 - i / 18;
+  return { h: Math.round(4 + v * fade * 44), o: 0.25 + (1 - i / 14) * 0.7 };
+});
+
 export function GeneralPanel({ onNavigate }: GeneralPanelProps) {
   const { t, intlLocale } = useI18n();
+  const g = t.settings.general;
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [hotkey, setHotkey] = useState<string>("Ctrl+Space");
 
   useEffect(() => {
     refresh();
     api.getHistory().then(setHistory);
+    api.getSettings().then((s) => setHotkey(s.hotkey)).catch(() => {});
   }, []);
 
   // The event already carries the new entry — prepend it instead of
   // re-reading the whole history file after every dictation.
   useTauriEvent(events.onHistoryNew, (entry) => setHistory((h) => [entry, ...h]));
   // The model load happens asynchronously after app start — refresh the
-  // status panel as soon as Rust signals the model is ready so the GPU
-  // acceleration line flips from "loading" to the active-GPU string without
-  // a manual tab swap.
+  // status as soon as Rust signals the model is ready so the GPU line flips
+  // from "loading" to the active-GPU string without a manual tab swap.
   useTauriEvent(events.onModelLoaded, () => refresh());
+  useTauriEvent(events.onSettingsChanged, () => {
+    api.getSettings().then((s) => setHotkey(s.hotkey)).catch(() => {});
+    refresh();
+  });
 
   async function refresh() {
     try {
@@ -74,244 +88,268 @@ export function GeneralPanel({ onNavigate }: GeneralPanelProps) {
   }
 
   const items = status ? describeStatus(status, t) : [];
-
   const worst = worstLevel(items);
   const hero = heroPhrase(worst, status, t);
 
-  // Stats this session — last 24h
-  const last24h = Date.now() - 86_400_000;
-  const recent = history.filter((h) => h.timestamp > last24h);
-  const dictationsToday = recent.length;
-  const wordsToday = recent.reduce((s, e) => s + e.wordCount, 0);
-  const audioToday = recent.reduce((s, e) => s + e.durationMs, 0) / 1000;
+  // Today, from local midnight — "today" on the dashboard means the
+  // calendar day, matching the week chart next to it.
+  const midnight = startOfDay(Date.now());
+  const today = history.filter((h) => h.timestamp >= midnight);
+  const wordsToday = today.reduce((s, e) => s + e.wordCount, 0);
+  const audioToday = today.reduce((s, e) => s + e.durationMs, 0) / 1000;
+  const wpm = audioToday > 0 ? Math.round(wordsToday / (audioToday / 60)) : 0;
 
-  // All-time counters, inherited from the retired Account panel. Same source,
-  // same arithmetic — the whole history rather than the last 24 hours.
-  const dictationsTotal = history.length;
-  const wordsTotal = history.reduce((s, e) => s + e.wordCount, 0);
-  const audioTotal = history.reduce((s, e) => s + e.durationMs, 0) / 1000;
+  const week = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(intlLocale, { weekday: "narrow" });
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const start = midnight - (6 - i) * DAY_MS;
+      const words = history
+        .filter((h) => h.timestamp >= start && h.timestamp < start + DAY_MS)
+        .reduce((s, e) => s + e.wordCount, 0);
+      return { start, words, label: fmt.format(new Date(start)), isToday: i === 6 };
+    });
+    const max = Math.max(1, ...days.map((d) => d.words));
+    return days.map((d) => ({ ...d, pct: d.words / max }));
+  }, [history, intlLocale, midnight]);
+
+  const model = status?.whisper.kind === "loaded" ? status.whisper.detail : null;
+  const engine =
+    status?.acceleration.kind === "gpu" ? status.acceleration.detail ?? "GPU" : "CPU";
 
   return (
-    <div className="space-y-14">
-      {/* ─── Hero ─────────────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-        className="space-y-8"
-      >
-        <Logo size={64} className="text-sand" />
-
-        <div className="space-y-2.5">
-          <h1 className="text-[40px] leading-[1.05] font-semibold tracking-[-0.035em] text-app">
-            {hero.title}
-          </h1>
-          <p className="text-[15px] leading-relaxed text-soft max-w-[44ch]">
-            {hero.subtitle}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 text-[12.5px] text-muted">
-          <span>{t.settings.general.holdHintPrefix}</span>
-          <Kbd>Ctrl</Kbd>
-          <span className="text-faint">+</span>
-          <Kbd>Space</Kbd>
-          <span>{t.settings.general.holdHintSuffix}</span>
-        </div>
-      </motion.section>
-
-      {/* ─── Stats 24h ─────────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        className="space-y-3"
-      >
-        <SectionLabel>{t.settings.general.todayLabel}</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard
-            icon={<Mic className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.stat.dictations}
-            value={dictationsToday.toString()}
-          />
-          <StatCard
-            icon={<FileText className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.stat.words}
-            value={wordsToday.toLocaleString(intlLocale)}
-          />
-          <StatCard
-            icon={<Clock className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.stat.audio}
-            value={formatAudio(audioToday, t)}
-          />
-        </div>
-      </motion.section>
-
-      {/* ─── Stats all time ────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.14 }}
-        className="space-y-3"
-      >
-        <SectionLabel>{t.settings.general.totalsLabel}</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard
-            icon={<Mic className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.totalStat.dictations}
-            value={dictationsTotal.toLocaleString(intlLocale)}
-          />
-          <StatCard
-            icon={<FileText className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.totalStat.words}
-            value={wordsTotal.toLocaleString(intlLocale)}
-          />
-          <StatCard
-            icon={<Clock className="h-3 w-3" strokeWidth={2.4} />}
-            label={t.settings.general.totalStat.audio}
-            value={formatAudio(audioTotal, t)}
-          />
-        </div>
-      </motion.section>
-
-      {/* ─── System checks ─────────────────────────────────────── */}
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.18 }}
-        className="space-y-3"
-      >
-        <SectionLabel>{t.settings.general.systemLabel}</SectionLabel>
-
-        <div className="-mx-3">
-          {items.length === 0
-            ? Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="px-3 py-2.5 flex items-center gap-3">
-                  <div className="h-3.5 w-3.5 rounded-full bg-subtle animate-pulse" />
-                  <div className="h-3 w-20 rounded bg-subtle animate-pulse" />
-                  <div className="h-3 w-32 rounded bg-subtle animate-pulse ml-auto" />
-                </div>
-              ))
-            : items.map((it, idx) => (
-                <StatusRow
-                  key={idx}
-                  item={it}
-                  onClick={it.linkTo ? () => onNavigate(it.linkTo!) : undefined}
-                />
-              ))}
-        </div>
-      </motion.section>
-
-      {/* ─── Last dictations preview ────────────────────────────── */}
-      {history.length > 0 && (
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
+    <div className="space-y-4">
+      <section className="grid grid-cols-5 gap-3.5">
+        {/* ─── Stage ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.26 }}
-          className="space-y-3"
+          transition={{ duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
+          className="stage col-span-3 min-h-[300px] px-6 py-[22px] flex flex-col justify-between gap-5"
         >
-          <div className="flex items-center justify-between">
-            <SectionLabel>{t.settings.general.recentTitle}</SectionLabel>
-            <button
-              onClick={() => onNavigate("history")}
-              className="text-[11.5px] text-muted hover:text-app transition-colors inline-flex items-center gap-1"
-            >
-              {t.settings.general.seeAll}
-              <ChevronRight className="h-3 w-3" strokeWidth={2.2} />
-            </button>
+          <div className="stage-glow left-1/2 top-[46%] w-[420px] h-[260px] -translate-x-1/2 -translate-y-1/2" />
+
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-2 min-w-0">
+              <StatusChip tone={status ? worst : "neutral"}>{hero.title}</StatusChip>
+              {status && worst !== "ok" && (
+                <p className="text-[12.5px] text-soft leading-relaxed max-w-[40ch]">
+                  {hero.subtitle}
+                </p>
+              )}
+            </div>
+            {model && (
+              <span className="font-mono text-[11px] text-muted truncate">
+                {model} · {engine}
+              </span>
+            )}
           </div>
 
-          <div className="space-y-1.5">
+          <div className="flex items-center justify-center gap-[22px]">
+            <StageBars mirrored />
+            <button
+              type="button"
+              onClick={() => onNavigate("diagnostics")}
+              aria-label={t.ui.testMic}
+              title={t.ui.testMic}
+              className="h-24 w-24 flex-shrink-0 rounded-full flex items-center justify-center text-app transition-transform hover:scale-[1.03] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,230,200,0.25)",
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,255,255,0.25), 0 0 0 10px hsl(30 60% 60% / 0.10), 0 0 0 22px hsl(30 60% 60% / 0.05)",
+              }}
+            >
+              <Mic className="h-[30px] w-[30px]" strokeWidth={1.9} />
+            </button>
+            <StageBars />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[12.5px] text-soft">
+            <span>{g.holdHintPrefix}</span>
+            <HotkeyCaps combo={hotkey} size="sm" />
+            <span>{g.holdHintSuffix}</span>
+          </div>
+        </motion.div>
+
+        {/* ─── Today ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.06 }}
+          className="card col-span-2 px-[22px] py-5 flex flex-col gap-3.5"
+        >
+          <div className="space-y-0.5">
+            <div className="text-[12px] text-muted">{g.todayLabel}</div>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-[44px] leading-none font-bold tracking-[-0.05em] tabular-nums text-app">
+                {wordsToday.toLocaleString(intlLocale)}
+              </span>
+              <span className="text-[13px] text-soft">{t.ui.wordsDictated}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <MiniStat value={today.length.toLocaleString(intlLocale)} label={t.ui.dictations} />
+            <MiniStat value={formatAudio(audioToday, t)} label={t.ui.audio} />
+            <MiniStat value={wpm > 0 ? String(wpm) : "—"} label={t.ui.wordsPerMinute} />
+          </div>
+
+          <div className="flex-1 flex flex-col gap-1.5 min-h-[90px]">
+            <span className="text-[11.5px] text-muted">{t.ui.thisWeek}</span>
+            <div className="flex-1 grid grid-cols-7 gap-1.5 items-end">
+              {week.map((d) => (
+                <div key={d.start} className="flex flex-col items-center gap-1 h-full justify-end">
+                  <span
+                    className="w-full rounded"
+                    title={`${d.words.toLocaleString(intlLocale)}`}
+                    style={{
+                      height: `${Math.max(6, d.pct * 100)}%`,
+                      minHeight: 4,
+                      background: d.isToday
+                        ? "hsl(var(--sand))"
+                        : d.words === 0
+                        ? "hsl(var(--border-soft))"
+                        : "hsl(var(--sand) / 0.38)",
+                    }}
+                  />
+                  <span className="text-[10.5px] text-muted">{d.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ─── Recent dictations ─────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.12 }}
+        className="space-y-2.5"
+      >
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-[13px] font-semibold tracking-tight text-app">{g.recentTitle}</h2>
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigate("history")}
+              className="text-[12px] font-medium text-sand hover:opacity-80 inline-flex items-center gap-0.5"
+            >
+              {t.ui.fullHistory}
+              <ChevronRight className="h-3 w-3" strokeWidth={2.4} />
+            </button>
+          )}
+        </div>
+        {history.length === 0 ? (
+          <div className="card border-dashed px-5 py-8 text-center text-[12.5px] text-muted">
+            {t.ui.noDictationYet}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
             {history.slice(0, 3).map((entry) => (
               <div
                 key={entry.id}
-                className="px-3 py-2 rounded-md hover:bg-hover transition-colors"
+                className="card rounded-[14px] min-h-[118px] px-4 py-3.5 flex flex-col justify-between gap-3"
               >
-                <p className="text-[13px] text-app leading-snug line-clamp-1">
-                  {entry.text}
-                </p>
-                <div className="mt-0.5 text-[10.5px] font-mono text-faint tabular-nums">
-                  {formatRelativeTime(entry.timestamp, t, intlLocale)} ·{" "}
-                  {t.settings.general.wordCount(entry.wordCount)}
+                <p className="text-[13px] leading-[1.45] text-app line-clamp-3">{entry.text}</p>
+                <div className="flex items-center justify-between text-[11px] text-muted">
+                  <span className="font-mono tabular-nums">
+                    {formatRelativeTime(entry.timestamp, t, intlLocale)}
+                  </span>
+                  <span>{g.wordCount(entry.wordCount)}</span>
                 </div>
               </div>
             ))}
           </div>
-        </motion.section>
-      )}
+        )}
+      </motion.section>
+
+      {/* ─── System chips ──────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, delay: 0.18 }}
+        aria-label={g.systemLabel}
+        className="flex flex-wrap gap-2"
+      >
+        {items.length === 0
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <span key={i} className="h-[30px] w-28 rounded-full bg-subtle animate-pulse" />
+            ))
+          : items.map((it) => (
+              <StatusPill
+                key={it.label}
+                item={it}
+                onClick={it.linkTo ? () => onNavigate(it.linkTo!) : undefined}
+              />
+            ))}
+      </motion.section>
     </div>
   );
 }
 
 /* ─── Sub-components ───────────────────────────────────────────── */
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function StageBars({ mirrored }: { mirrored?: boolean }) {
+  const bars = mirrored ? [...STAGE_BARS].reverse() : STAGE_BARS;
   return (
-    <div className="rounded-lg border border-app bg-elevated p-3.5 space-y-1.5">
-      <div className="flex items-center gap-1.5 text-faint">
-        {icon}
-        <span className="text-[10.5px] uppercase tracking-[0.1em] font-medium">{label}</span>
-      </div>
-      <div className="text-[22px] font-semibold tracking-[-0.025em] tabular-nums text-app leading-none">
-        {value}
-      </div>
+    <div className="flex items-center gap-[3px] h-[50px]" aria-hidden="true">
+      {bars.map((b, i) => (
+        <span
+          key={i}
+          className="w-[3px] rounded-full bg-sand"
+          style={{ height: b.h, opacity: b.o }}
+        />
+      ))}
     </div>
   );
 }
 
-function StatusRow({ item, onClick }: { item: StatusRowView; onClick?: () => void }) {
-  const interactive = !!onClick;
+function MiniStat({ value, label }: { value: string; label: string }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={!interactive}
-      className={`group w-full px-3 py-2 flex items-center gap-3 rounded-md transition-colors ${
-        interactive ? "hover:bg-hover cursor-pointer" : "cursor-default"
-      }`}
-    >
+    <div className="tile px-2.5 py-[9px] space-y-0.5 min-w-0">
+      <div className="font-mono text-[15px] font-medium tabular-nums text-app truncate">{value}</div>
+      <div className="text-[11px] text-muted truncate">{label}</div>
+    </div>
+  );
+}
+
+function StatusPill({ item, onClick }: { item: StatusRowView; onClick?: () => void }) {
+  const content = (
+    <>
       <StatusIcon level={item.level} />
-      <span className="text-[12.5px] font-medium tracking-tight text-soft min-w-[110px] text-left">
-        {item.label}
-      </span>
-      <span className="text-[12.5px] text-app text-left flex-1 truncate font-mono">
-        {item.value}
-      </span>
-      {interactive && (
-        <ChevronRight
-          className="h-3 w-3 text-faint group-hover:text-soft transition-colors"
-          strokeWidth={2.2}
-        />
-      )}
+      <span className="truncate max-w-[260px]">{item.value}</span>
+    </>
+  );
+  const cls =
+    "inline-flex items-center gap-[7px] h-[30px] px-3 rounded-full border border-app bg-elevated text-[12px] text-soft";
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      title={item.label}
+      className={`${cls} hover:bg-hover hover:text-app transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sand))]`}
+    >
+      {content}
     </button>
+  ) : (
+    <span title={item.label} className={cls}>
+      {content}
+    </span>
   );
 }
 
 function StatusIcon({ level }: { level: StatusLevel }) {
-  if (level === "ok")
-    return (
-      <span className="flex items-center justify-center h-4 w-4 flex-shrink-0">
-        <Check className="h-3.5 w-3.5 text-moss" strokeWidth={2.5} />
-      </span>
-    );
+  if (level === "ok") return <Check className="h-3 w-3 text-moss flex-shrink-0" strokeWidth={2.8} />;
   if (level === "warn")
-    return (
-      <span className="flex items-center justify-center h-4 w-4 flex-shrink-0">
-        <AlertTriangle className="h-3.5 w-3.5 text-sand" strokeWidth={2.3} />
-      </span>
-    );
-  return (
-    <span className="flex items-center justify-center h-4 w-4 flex-shrink-0">
-      <X className="h-3.5 w-3.5 text-ember" strokeWidth={2.5} />
-    </span>
-  );
+    return <AlertTriangle className="h-3 w-3 text-sand flex-shrink-0" strokeWidth={2.4} />;
+  return <X className="h-3 w-3 text-ember flex-shrink-0" strokeWidth={2.8} />;
+}
+
+function startOfDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 /**

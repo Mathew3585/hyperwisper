@@ -3,8 +3,8 @@ export type Theme = "light" | "dark" | "system";
 const STORAGE_KEY = "hyperwisper-theme";
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  return (localStorage.getItem(STORAGE_KEY) as Theme) ?? "dark";
+  if (typeof window === "undefined") return "light";
+  return (localStorage.getItem(STORAGE_KEY) as Theme) ?? "light";
 }
 
 export function setStoredTheme(theme: Theme) {

@@ -172,7 +172,7 @@ function FatPill({
             <FatWaveform />
             <span
               className="font-mono text-[11px] tabular-nums min-w-[34px] text-right tracking-tight"
-              style={{ color: "rgba(244, 241, 234, 0.55)" }}
+              style={{ color: "rgba(244, 241, 234, 0.8)" }}
             >
               {formatTime(elapsed)}
             </span>
@@ -385,7 +385,7 @@ function LiveWaveform({
           style={{
             height: `${min}px`,
             opacity: baseOpacity,
-            background: "hsl(30, 65%, 78%)",
+            background: "#ffffff",
             transition: "height 70ms linear, opacity 70ms linear",
           }}
         />
@@ -424,8 +424,8 @@ function CancelButton() {
       }}
       className="flex items-center justify-center h-[18px] w-[18px] rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[hsl(var(--sand))]"
       style={{
-        background: "rgba(255, 245, 230, 0.06)",
-        color: "rgba(244, 241, 234, 0.55)",
+        background: "rgba(255, 255, 255, 0.14)",
+        color: "rgba(255, 255, 255, 0.85)",
       }}
       title={t.overlay.cancelTitle}
       aria-label={t.overlay.cancelAriaLabel}
@@ -476,15 +476,25 @@ function DoneCheck({ small }: { small?: boolean }) {
   );
 }
 
+/**
+ * "Smoked glass" pill. No backdrop-filter: in a transparent WebView2 window
+ * it can only sample the webview's own (empty) content, never the desktop
+ * behind it. So the glass is drawn rather than computed — a warm tinted
+ * body that lets ~20% of the desktop through, a specular sheen on the top
+ * half, and a bright rim — and stays legible over any wallpaper or window.
+ */
 function pillSurface(): React.CSSProperties {
   return {
-    // No backdrop-filter: in a transparent WebView2 window it can only
-    // sample the webview's own (empty) content, never the desktop behind
-    // it, so it cost a filter pass per repaint for no visible effect.
-    background: "rgba(28, 24, 21, 0.94)",
-    border: "1px solid rgba(255, 245, 230, 0.08)",
-    boxShadow:
-      "0 10px 40px -10px rgba(0,0,0,0.55), inset 0 1px 0 0 rgba(255,240,220,0.05)",
+    background: [
+      "linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 46%, rgba(255,255,255,0) 60%)",
+      "linear-gradient(180deg, rgba(52, 43, 37, 0.80) 0%, rgba(26, 22, 19, 0.86) 100%)",
+    ].join(", "),
+    border: "1px solid rgba(255, 255, 255, 0.24)",
+    boxShadow: [
+      "inset 0 1px 0 rgba(255, 255, 255, 0.42)",
+      "inset 0 -1px 0 rgba(255, 255, 255, 0.07)",
+      "0 14px 38px -10px rgba(0, 0, 0, 0.55)",
+    ].join(", "),
   };
 }
 
