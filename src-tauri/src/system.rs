@@ -45,6 +45,59 @@ fn query_gpu() -> Option<String> {
     }
 }
 
+/// Opt the process out of Windows 11 EcoQoS / power throttling.
+///
+/// While the user dictates, our window is in the background (focus is in the
+/// app they're typing into). On laptops — especially on battery — Windows
+/// then moves background processes to efficiency cores at low clocks, which
+/// throttles whisper.cpp's CPU threads and the thread feeding the GPU. We're
+/// a latency-critical foreground task in disguise, so we say so.
+pub fn disable_power_throttling() {
+    #[cfg(windows)]
+    {
+        #[repr(C)]
+        struct ProcessPowerThrottlingState {
+            version: u32,
+            control_mask: u32,
+            state_mask: u32,
+        }
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetCurrentProcess() -> isize;
+            fn SetProcessInformation(
+                process: isize,
+                class: i32,
+                info: *const core::ffi::c_void,
+                size: u32,
+            ) -> i32;
+        }
+        const PROCESS_POWER_THROTTLING: i32 = 4; // ProcessPowerThrottling
+        const EXECUTION_SPEED: u32 = 0x1;
+        const IGNORE_TIMER_RESOLUTION: u32 = 0x4;
+
+        let state = ProcessPowerThrottlingState {
+            version: 1,
+            // Control these bits, and set them to "off" (state_mask = 0).
+            control_mask: EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION,
+            state_mask: 0,
+        };
+        // SAFETY: valid pseudo-handle and a correctly sized, live struct.
+        let ok = unsafe {
+            SetProcessInformation(
+                GetCurrentProcess(),
+                PROCESS_POWER_THROTTLING,
+                &state as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<ProcessPowerThrottlingState>() as u32,
+            )
+        };
+        if ok == 0 {
+            tracing::warn!("SetProcessInformation(PowerThrottling) failed");
+        } else {
+            tracing::info!("Power throttling (EcoQoS) disabled for this process");
+        }
+    }
+}
+
 /// Whether the running binary was compiled with a GPU acceleration backend
 /// for whisper.cpp.
 pub fn gpu_acceleration_enabled() -> bool {

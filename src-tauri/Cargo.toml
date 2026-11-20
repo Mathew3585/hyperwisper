@@ -36,7 +36,7 @@ cpal = "0.15"
 rubato = "0.15"
 
 # Phase 3: Whisper local transcription (whisper.cpp bindings)
-whisper-rs = { version = "0.16", default-features = false }
+whisper-rs = { version = "0.16", default-features = false, features = ["tracing_backend", "raw-api"] }
 num_cpus = "1"
 
 # Phase 3: model download (HuggingFace)

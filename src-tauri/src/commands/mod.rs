@@ -265,13 +265,19 @@ pub async fn get_runtime_info(app: AppHandle) -> RuntimeInfo {
         .ok()
         .flatten();
     let state = app.state::<AppState>();
-    let (model, flash_attn) = match state.whisper.try_read() {
+    let (model, flash_attn, engine_gpu) = match state.whisper.try_read() {
         Some(guard) => match guard.as_ref() {
-            Some(e) => (Some(e.model().display_name().to_string()), Some(e.flash_attn())),
-            None => (None, None),
+            Some(e) => (
+                Some(e.model().display_name().to_string()),
+                Some(e.flash_attn()),
+                e.device().map(str::to_string),
+            ),
+            None => (None, None, None),
         },
-        None => (None, None), // a model swap is in progress
+        None => (None, None, None), // a model swap is in progress
     };
+    // The device inference really uses beats WMI's first adapter.
+    let gpu = engine_gpu.or(gpu);
     let physical = num_cpus::get_physical();
     let game_mode_suspended_by = state.game_mode_app.lock().clone();
     RuntimeInfo {
@@ -577,8 +583,17 @@ pub fn get_system_status(app: AppHandle) -> SystemStatus {
 
     // GPU / acceleration
     let acceleration = {
-        let gpu = system::detect_gpu();
-        let enabled = system::gpu_acceleration_enabled();
+        // Once a model is loaded, report the device whisper.cpp actually
+        // runs on — WMI's first adapter is the iGPU on most laptops.
+        let engine_device: Option<Option<String>> = state
+            .whisper
+            .try_read()
+            .and_then(|g| g.as_ref().map(|e| e.device().map(str::to_string)));
+        let (gpu, enabled) = match engine_device {
+            Some(Some(name)) => (Some(name), true),
+            Some(None) => (system::detect_gpu(), false),
+            None => (system::detect_gpu(), system::gpu_acceleration_enabled()),
+        };
         match (gpu, enabled) {
             (Some(name), true) => StatusItem {
                 level: StatusLevel::Ok,

@@ -52,6 +52,10 @@ pub fn run() {
     // non-blocking file appender. Store it on the stack of `run()` so it
     // lives as long as the Tauri runtime.
     let _log_guard = setup_logging();
+    // whisper.cpp / ggml print to stderr, which a GUI-subsystem exe doesn't
+    // have — route them into our log file so the chosen GPU is visible.
+    whisper_rs::install_logging_hooks();
+    system::disable_power_throttling();
 
     tracing::info!("Starting Hyperwisper {}", env!("CARGO_PKG_VERSION"));
     if cfg!(feature = "gpu-vulkan") {
@@ -235,7 +239,7 @@ fn setup_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("hyperwisper=info,hyperwisper_lib=info")
+        EnvFilter::new("hyperwisper=info,hyperwisper_lib=info,whisper_rs=info")
     });
 
     let stderr_layer = tracing_subscriber::fmt::layer()

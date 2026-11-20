@@ -36,6 +36,71 @@ pub struct WhisperEngine {
     state: Mutex<WhisperState>,
     model: Model,
     flash_attn: bool,
+    /// GPU the context was created on (`None` = CPU only).
+    device: Option<String>,
+}
+
+/// The GPU whisper.cpp should run on.
+struct GpuChoice {
+    /// Value for `WhisperContextParameters::gpu_device`: whisper.cpp counts
+    /// discrete *and* integrated GPUs, in ggml registration order.
+    whisper_index: i32,
+    name: String,
+}
+
+/// Pick the discrete GPU when there is one.
+///
+/// ggml-vulkan registers every discrete and integrated GPU in the order the
+/// Vulkan loader returns them, and whisper.cpp then takes the first one
+/// (`gpu_device = 0`). On a laptop the iGPU drives the display and usually
+/// comes first — so without this, an RTX laptop runs Large v3 Turbo on its
+/// integrated graphics, 50–100x slower. Desktops with a single GPU are
+/// unaffected.
+fn pick_gpu_device() -> Option<GpuChoice> {
+    use std::ffi::CStr;
+    use whisper_rs::whisper_rs_sys as sys;
+
+    let mut candidates: Vec<(i32, String, bool, usize)> = Vec::new();
+    // SAFETY: plain queries on ggml's static device registry; the returned
+    // name pointers are owned by ggml and live for the whole process.
+    unsafe {
+        let mut whisper_index = 0i32;
+        for i in 0..sys::ggml_backend_dev_count() {
+            let dev = sys::ggml_backend_dev_get(i);
+            let kind = sys::ggml_backend_dev_type(dev);
+            let desc = sys::ggml_backend_dev_description(dev);
+            let name = if desc.is_null() {
+                CStr::from_ptr(sys::ggml_backend_dev_name(dev)).to_string_lossy().into_owned()
+            } else {
+                CStr::from_ptr(desc).to_string_lossy().into_owned()
+            };
+            let (mut free, mut total) = (0usize, 0usize);
+            sys::ggml_backend_dev_memory(dev, &mut free, &mut total);
+            tracing::info!(
+                "ggml device {i}: {name} (type={kind}, {:.1} GB)",
+                total as f64 / 1_073_741_824.0
+            );
+
+            let discrete = kind == sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_GPU;
+            let integrated = kind == sys::ggml_backend_dev_type_GGML_BACKEND_DEVICE_TYPE_IGPU;
+            if discrete || integrated {
+                candidates.push((whisper_index, name, discrete, total));
+                whisper_index += 1;
+            }
+        }
+    }
+
+    // Discrete first, then the one with the most memory.
+    let best = candidates
+        .into_iter()
+        .max_by_key(|(idx, _, discrete, total)| (*discrete, *total, -*idx))?;
+    tracing::info!(
+        "Whisper GPU: {} ({}, whisper gpu_device={})",
+        best.1,
+        if best.2 { "discrete" } else { "integrated" },
+        best.0
+    );
+    Some(GpuChoice { whisper_index: best.0, name: best.1 })
 }
 
 #[derive(Debug, Clone, Default)]
@@ -79,13 +144,22 @@ impl WhisperEngine {
         // device supports it, but support isn't universal. Try it, and fall
         // back to a plain context if creation rejects it rather than leaving
         // the user with no model at all.
-        let mut params = WhisperContextParameters::default();
+        let gpu = pick_gpu_device();
+        let base_params = || {
+            let mut p = WhisperContextParameters::default();
+            if let Some(gpu) = &gpu {
+                p.gpu_device(gpu.whisper_index);
+            }
+            p
+        };
+
+        let mut params = base_params();
         params.flash_attn(true);
         let (ctx, flash_attn) = match WhisperContext::new_with_params(path, params) {
             Ok(ctx) => (ctx, true),
             Err(e) => {
                 tracing::warn!("Context creation with flash_attn failed ({e}); retrying without");
-                let ctx = WhisperContext::new_with_params(path, WhisperContextParameters::default())
+                let ctx = WhisperContext::new_with_params(path, base_params())
                     .map_err(|e| anyhow!("WhisperContext::new failed: {e}"))?;
                 (ctx, false)
             }
@@ -95,10 +169,12 @@ impl WhisperEngine {
             .create_state()
             .map_err(|e| anyhow!("create_state failed: {e}"))?;
 
+        let device = gpu.map(|g| g.name);
         tracing::info!(
-            "Whisper model loaded ({}, flash_attn={}) in {:.2}s",
+            "Whisper model loaded ({}, flash_attn={}, device={}) in {:.2}s",
             model.display_name(),
             flash_attn,
+            device.as_deref().unwrap_or("CPU"),
             started.elapsed().as_secs_f32()
         );
 
@@ -107,7 +183,13 @@ impl WhisperEngine {
             state: Mutex::new(state),
             model,
             flash_attn,
+            device,
         })
+    }
+
+    /// Name of the GPU inference runs on, `None` when it runs on the CPU.
+    pub fn device(&self) -> Option<&str> {
+        self.device.as_deref()
     }
 
     /// Run one throwaway inference so the first *real* dictation doesn't have
