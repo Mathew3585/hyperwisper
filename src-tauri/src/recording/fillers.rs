@@ -120,8 +120,19 @@ const PT: &[Rule] = &[
 /// Words that, right before "du coup", make "coup" a noun: "à cause du
 /// coup", "la violence du coup".
 const COUP_NOUN_CONTEXT: &[&str] = &[
-    "cause", "suite", "effet", "force", "violence", "auteur", "auteurs", "bruit", "choc", "lors",
-    "impact", "puissance", "sous",
+    "cause",
+    "suite",
+    "effet",
+    "force",
+    "violence",
+    "auteur",
+    "auteurs",
+    "bruit",
+    "choc",
+    "lors",
+    "impact",
+    "puissance",
+    "sous",
 ];
 
 /// Conjunctions that can't take a comma right after them: when a filler
@@ -180,7 +191,11 @@ pub fn remove_fillers(text: &str, language: &str, mode: FillerRemoval) -> (Strin
     }
 
     let total_words = toks.iter().filter(|t| t.is_word()).count();
-    let removed_words = toks.iter().zip(&removed).filter(|(t, r)| **r && t.is_word()).count();
+    let removed_words = toks
+        .iter()
+        .zip(&removed)
+        .filter(|(t, r)| **r && t.is_word())
+        .count();
     if removed_words == total_words || removed_words * 100 > total_words * MAX_REMOVED_PCT {
         return (text.to_string(), 0);
     }
@@ -200,13 +215,14 @@ pub fn remove_fillers(text: &str, language: &str, mode: FillerRemoval) -> (Strin
             // "Ok, du coup, je" → "Ok, je"; "Du coup, je" → "je";
             // "et du coup, mettre" → "et mettre"
             removed[n] = true;
-        } else if let Some(p) = p.filter(|_| {
-            p_tok.is_some_and(|t| t.is(",")) && n_tok.map_or(true, is_terminator)
-        }) {
+        } else if let Some(p) =
+            p.filter(|_| p_tok.is_some_and(|t| t.is(",")) && n_tok.map_or(true, is_terminator))
+        {
             // "C'est bien, quoi." → "C'est bien."
             removed[p] = true;
         } else if let Some(n) = n.filter(|_| {
-            p_tok.map_or(true, is_sentence_end) && n_tok.is_some_and(|t| matches!(t.text, "." | "!" | "…"))
+            p_tok.map_or(true, is_sentence_end)
+                && n_tok.is_some_and(|t| matches!(t.text, "." | "!" | "…"))
         }) {
             // "On verra bien. Voilà. Mais" → "On verra bien. Mais"
             removed[n] = true;
@@ -227,14 +243,21 @@ pub fn remove_fillers(text: &str, language: &str, mode: FillerRemoval) -> (Strin
         }
     }
 
-    (rebuild(text, &toks, &removed, &capitalize), removed_words as u32)
+    (
+        rebuild(text, &toks, &removed, &capitalize),
+        removed_words as u32,
+    )
 }
 
 /// Length of the filler matched at `i`, if `rule` matches there in context.
 fn match_rule(toks: &[Tok], i: usize, rule: &Rule, prev: Option<&Tok>) -> Option<usize> {
     let n = rule.words.len();
     let span = toks.get(i..i + n)?;
-    if !span.iter().zip(rule.words).all(|(t, w)| t.is_word() && t.lower() == *w) {
+    if !span
+        .iter()
+        .zip(rule.words)
+        .all(|(t, w)| t.is_word() && t.lower() == *w)
+    {
         return None;
     }
     let next = toks.get(i + n);
@@ -250,17 +273,16 @@ fn match_rule(toks: &[Tok], i: usize, rule: &Rule, prev: Option<&Tok>) -> Option
                 let w = t.lower();
                 t.is_word() && (matches!(w.as_str(), "de" | "du" | "des") || w.starts_with("d'"))
             });
-            let noun_before = prev.is_some_and(|t| {
-                t.is_word() && COUP_NOUN_CONTEXT.contains(&t.lower().as_str())
-            });
+            let noun_before = prev
+                .is_some_and(|t| t.is_word() && COUP_NOUN_CONTEXT.contains(&t.lower().as_str()));
             !noun_follows && !noun_before
         }
         When::Standalone => {
-            boundary_before
-                && next.map_or(true, |t| matches!(t.text, "," | "." | "!" | "…" | ";"))
+            boundary_before && next.map_or(true, |t| matches!(t.text, "," | "." | "!" | "…" | ";"))
         }
         When::CommaTail => {
-            prev.is_some_and(|t| t.is(",")) && next.map_or(true, |t| matches!(t.text, "." | "!" | "…"))
+            prev.is_some_and(|t| t.is(","))
+                && next.map_or(true, |t| matches!(t.text, "." | "!" | "…"))
         }
     };
     ok.then_some(n)
@@ -268,7 +290,9 @@ fn match_rule(toks: &[Tok], i: usize, rule: &Rule, prev: Option<&Tok>) -> Option
 
 /// "Euh... je pense" → the ellipsis that trailed the hesitation goes too.
 fn drop_trailing_ellipsis(toks: &[Tok], removed: &mut [bool], from: usize) {
-    let Some(n) = next_kept(removed, from) else { return };
+    let Some(n) = next_kept(removed, from) else {
+        return;
+    };
     if toks[n].is("…") {
         removed[n] = true;
         return;
@@ -318,7 +342,12 @@ fn tokenize(s: &str) -> Vec<Tok<'_>> {
         } else {
             Kind::Punct
         };
-        toks.push(Tok { text: &s[i..end], start: i, end, kind });
+        toks.push(Tok {
+            text: &s[i..end],
+            start: i,
+            end,
+            kind,
+        });
     }
     toks
 }
@@ -389,7 +418,10 @@ mod tests {
             "Ok, alors, je te fais le message."
         );
         assert_eq!(fr("C'est bien, quoi."), "C'est bien.");
-        assert_eq!(fr("Ça marche, tu vois, c'est rapide."), "Ça marche, c'est rapide.");
+        assert_eq!(
+            fr("Ça marche, tu vois, c'est rapide."),
+            "Ça marche, c'est rapide."
+        );
         assert_eq!(
             fr("On va créer un exe et du coup, mettre ça sur un repo privé."),
             "On va créer un exe et mettre ça sur un repo privé."
@@ -415,23 +447,39 @@ mod tests {
             fr("Bah, du coup, on y va demain vers dix heures."),
             "On y va demain vers dix heures."
         );
-        assert_eq!(fr("C'est fait. Du coup on passe à la suite."), "C'est fait. On passe à la suite.");
+        assert_eq!(
+            fr("C'est fait. Du coup on passe à la suite."),
+            "C'est fait. On passe à la suite."
+        );
     }
 
     #[test]
     fn strips_hesitations_and_their_ellipsis() {
-        assert_eq!(fr("Je pense que euh... ça marche bien."), "Je pense que ça marche bien.");
-        assert_eq!(fr("Euh, on se voit demain à midi."), "On se voit demain à midi.");
+        assert_eq!(
+            fr("Je pense que euh... ça marche bien."),
+            "Je pense que ça marche bien."
+        );
+        assert_eq!(
+            fr("Euh, on se voit demain à midi."),
+            "On se voit demain à midi."
+        );
     }
 
     #[test]
     fn strips_a_closing_standalone_voila() {
-        assert_eq!(fr("J'ai fini le rapport hier soir, voilà."), "J'ai fini le rapport hier soir.");
+        assert_eq!(
+            fr("J'ai fini le rapport hier soir, voilà."),
+            "J'ai fini le rapport hier soir."
+        );
     }
 
     #[test]
     fn english_hesitations() {
-        let (out, n) = remove_fillers("So um I think, you know, it works fine.", "en", FillerRemoval::Light);
+        let (out, n) = remove_fillers(
+            "So um I think, you know, it works fine.",
+            "en",
+            FillerRemoval::Light,
+        );
         assert_eq!(out, "So I think, it works fine.");
         assert_eq!(n, 3);
     }
@@ -469,7 +517,10 @@ mod tests {
     #[test]
     fn leaves_text_without_fillers_byte_identical() {
         let s = "Bonjour ,  ceci est   un test ?";
-        assert_eq!(remove_fillers(s, "fr", FillerRemoval::Light), (s.to_string(), 0));
+        assert_eq!(
+            remove_fillers(s, "fr", FillerRemoval::Light),
+            (s.to_string(), 0)
+        );
     }
 
     // ── Safety nets ─────────────────────────────────────────────────────
