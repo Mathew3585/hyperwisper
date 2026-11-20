@@ -1,6 +1,6 @@
 [package]
 name = "hyperwisper"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local voice-to-text dictation app — Superwhisper alternative"
 authors = ["Mathew Simon"]
 edition = "2021"
