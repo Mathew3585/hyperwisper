@@ -8,6 +8,8 @@ use crate::metrics::{self, DictationMetrics};
 use crate::paste::PasteOutcome;
 use crate::state::AppState;
 
+mod fillers;
+
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 /// Skip transcription if the recording is shorter than this — avoids whisper
 /// hallucinating placeholder sentences on accidental key presses.
@@ -294,8 +296,6 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
             m.no_speech_prob = r.no_speech_prob;
             m.repeated_words = r.repeated_words;
             m.detected_language = r.detected_language.clone();
-            m.chars = r.text.chars().count() as u32;
-            m.words = r.text.split_whitespace().count() as u32;
             (r, model_name)
         }
         Err(err) => {
@@ -308,6 +308,24 @@ pub async fn stop_and_transcribe(app: &AppHandle) {
             return;
         }
     };
+    let mut r = r;
+
+    // Strip spoken tics ("du coup", "euh"…) before the text reaches the
+    // history and the paste. Rules are per language: the setting, or what
+    // Whisper detected when it's on auto.
+    let filler_mode = app.state::<AppState>().settings.get().filler_removal;
+    let filler_lang = match m.language.as_str() {
+        "" | "auto" => r.detected_language.as_deref().unwrap_or(""),
+        code => code,
+    };
+    let (cleaned, fillers_removed) = fillers::remove_fillers(&r.text, filler_lang, filler_mode);
+    if fillers_removed > 0 {
+        tracing::info!("Removed {} filler words", fillers_removed);
+        r.text = cleaned;
+    }
+    m.fillers_removed = fillers_removed;
+    m.chars = r.text.chars().count() as u32;
+    m.words = r.text.split_whitespace().count() as u32;
 
     if r.text.is_empty() {
         // Whisper returned but produced no usable text (silence, garbage).

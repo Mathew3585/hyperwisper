@@ -58,7 +58,11 @@ export interface AppSettings {
    * screen, so the keystroke reaches that app instead of starting a dictation.
    */
   gameMode: boolean;
+  /** Strip spoken tics ("du coup", "euh"…) from the transcript before pasting. */
+  fillerRemoval: FillerRemoval;
 }
+
+export type FillerRemoval = "off" | "light";
 
 interface ModelStatusRust {
   model: Model;
@@ -180,6 +184,8 @@ export interface DictationMetrics {
   noSpeechProb: number;
   /** Words removed by the repetition-loop safety net (0 = clean decode). */
   repeatedWords: number;
+  /** Filler words ("du coup", "euh"…) stripped before pasting. */
+  fillersRemoved: number;
   chars: number;
   words: number;
 }
