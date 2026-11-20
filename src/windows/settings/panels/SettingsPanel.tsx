@@ -197,6 +197,12 @@ export function SettingsPanel() {
         {/* ─── Behaviour toggles ──────────────────────────────── */}
         <div className="card col-span-2 py-1.5 grid grid-cols-2">
           <ToggleRow
+            checked={settings.fillerRemoval !== "off"}
+            onChange={(v) => updateSetting("fillerRemoval", v ? "light" : "off")}
+            label={a.fillerRemoval.label}
+            description={a.fillerRemoval.description}
+          />
+          <ToggleRow
             checked={settings.autoPaste}
             onChange={(v) => updateSetting("autoPaste", v)}
             label={a.autoPaste.label}

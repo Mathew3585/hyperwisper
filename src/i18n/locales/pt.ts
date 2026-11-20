@@ -396,6 +396,11 @@ export const pt: Dictionary = {
         description:
           "Restaura o que você tinha copiado antes de ditar, cerca de 250 ms depois da colagem.",
       },
+      fillerRemoval: {
+        label: "Remover palavras de preenchimento",
+        description:
+          "Remove hesitações como “hã” antes de colar. Só onde não têm significado.",
+      },
       gameModeTitle: "Jogos",
       gameMode: {
         label: "Pausar enquanto você joga",

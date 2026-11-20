@@ -401,6 +401,11 @@ export const fr: Dictionary = {
         description:
           "Restaure ce que tu avais copié avant la dictée, ~250 ms après le collage.",
       },
+      fillerRemoval: {
+        label: "Retirer les mots de remplissage",
+        description:
+          "Enlève les tics de l'oral comme « du coup », « euh » ou un « voilà » isolé avant de coller. Seulement là où ils n'ont pas de sens.",
+      },
       gameModeTitle: "Jeux",
       gameMode: {
         label: "Mettre en pause pendant le jeu",

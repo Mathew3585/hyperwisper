@@ -78,6 +78,8 @@ pub struct DictationMetrics {
     pub no_speech_prob: f32,
     /// Words removed by the repetition-loop safety net (0 = clean decode).
     pub repeated_words: u32,
+    /// Filler words ("du coup", "euh"…) stripped before pasting.
+    pub fillers_removed: u32,
     pub chars: u32,
     pub words: u32,
 }

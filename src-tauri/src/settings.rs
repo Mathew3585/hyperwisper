@@ -65,6 +65,22 @@ pub struct Settings {
     /// The OS-level autostart registration is kept in sync with this value
     /// at startup and whenever settings are saved.
     pub auto_launch: bool,
+
+    /// Strip spoken tics ("du coup", "euh", ", quoi.") from the transcript
+    /// before it's pasted. A missing key in an older `settings.json` lands
+    /// on the default, so existing users get it too.
+    pub filler_removal: FillerRemoval,
+}
+
+/// How aggressively filler words are removed. An enum rather than a bool so
+/// a stronger level can be added later without migrating `settings.json`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FillerRemoval {
+    Off,
+    /// Only tics in contexts where they can't carry meaning.
+    #[default]
+    Light,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +122,7 @@ impl Default for Settings {
             overlay_style: OverlayStyle::Fat,
             onboarding_completed: false,
             auto_launch: true,
+            filler_removal: FillerRemoval::Light,
         }
     }
 }

@@ -413,6 +413,11 @@ export const de: Dictionary = {
         description:
           "Stellt ~250 ms nach dem Einfügen wieder her, was du vor dem Diktat kopiert hattest.",
       },
+      fillerRemoval: {
+        label: "Füllwörter entfernen",
+        description:
+          "Entfernt Füllwörter wie „äh“ oder „ähm“ vor dem Einfügen. Nur dort, wo sie keine Bedeutung tragen.",
+      },
       gameModeTitle: "Spiele",
       gameMode: {
         label: "Beim Spielen pausieren",

@@ -395,6 +395,11 @@ export const es: Dictionary = {
         description:
           "Restaura lo que tenías copiado antes de dictar, unos 250 ms después de pegar.",
       },
+      fillerRemoval: {
+        label: "Quitar muletillas",
+        description:
+          "Elimina vacilaciones como «ehm» antes de pegar. Solo donde no aportan significado.",
+      },
       gameModeTitle: "Juegos",
       gameMode: {
         label: "Pausar mientras juegas",

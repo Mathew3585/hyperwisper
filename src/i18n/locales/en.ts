@@ -429,6 +429,11 @@ export const en = {
         description:
           "Restores whatever you had copied before dictating, ~250 ms after the paste.",
       },
+      fillerRemoval: {
+        label: "Remove filler words",
+        description:
+          "Strips spoken tics like “um” or a standalone “you know” before pasting. Only where they carry no meaning.",
+      },
       gameModeTitle: "Games",
       gameMode: {
         label: "Pause while gaming",

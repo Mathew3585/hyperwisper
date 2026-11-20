@@ -565,6 +565,7 @@ function rowTitle(m: DictationMetrics): string {
     `speech ${m.speechMs}ms, sent ${m.trimmedMs}ms, audio_ctx ${m.audioCtx}`,
     `tokens ${m.nTokens}, no-speech ${m.noSpeechProb.toFixed(2)}`,
     m.repeatedWords ? `loop collapsed: ${m.repeatedWords} words` : "",
+    m.fillersRemoved ? `fillers removed: ${m.fillersRemoved}` : "",
     m.streamStartMs != null ? `mic start ${Math.round(m.streamStartMs)}ms` : "",
     m.gainDb ? `gain +${m.gainDb.toFixed(1)} dB` : "",
     m.detectedLanguage ? `lang ${m.detectedLanguage}` : "",
